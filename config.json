@@ -1,0 +1,10 @@
+{
+	"image_path": "C:\\Users\\Daric\\Desktop\\Dokumenty\\Dokumenty u¿ytkowe\\zdj_wiza.jpg",
+	"filler_images_dir_path": "D:\\Zdjecia\\USII",
+	"image_size": [ 200, 200 ],
+	"sub_images_size": [ 50, 50 ],
+	"strategy": "pixel_mean_random",
+	"filtration": true,
+	"show": false,
+	"output_image_path": "C:\\Users\\Daric\\Desktop\\zdj.jpg"
+}
