@@ -5,6 +5,8 @@
 
 
 #include <iostream>
+#include <thread>
+#include <mutex>
 #include <vector>
 #include <tuple>
 #include <map>
@@ -21,6 +23,7 @@
 
 #include <json/json.h>
 #include <spdlog/spdlog.h>
+
 
 
 #include <opencv2/opencv.hpp>
@@ -150,7 +153,6 @@ inline std::vector<cv::Vec3b> calculate_means(const std::vector<cv::Mat>& images
 	std::vector<cv::Vec3b> means;
 	cv::Scalar mean_scalar;
 
-	#pragma omp parallel for
 	for (const auto& image : images)
 	{
 		mean_scalar = cv::mean(image);
@@ -167,23 +169,34 @@ inline std::vector<cv::Vec3b> calculate_means(const std::vector<cv::Mat>& images
 
 inline int closest_image(const std::vector<cv::Vec3b>& means, const cv::Vec3b& color_BGR)
 {
-	int index = 0;
-	double dist;
-	double min_dist;
+	int final_index = 0;
+	double final_min_dist = std::numeric_limits<double>::max();
 
-	#pragma omp parallel for
-	for (int i = 0; i < means.size(); i++)
+	#pragma omp parallel
 	{
-		dist = cv::norm(means[i] - color_BGR, cv::NORM_L2);
-		if (i == 0)
-			min_dist = dist;
-		else if (dist < min_dist)
+		double local_min_dist = std::numeric_limits<double>::max();
+		int local_index = 0;
+
+		#pragma omp for nowait
+		for (int i = 0; i < means.size(); i++)
 		{
-			min_dist = dist;
-			index = i;
+			double dist = cv::norm(means[i] - color_BGR, cv::NORM_L2);
+			if (dist < local_min_dist)
+			{
+				local_min_dist = dist;
+				local_index = i;
+			}
 		}
+
+		#pragma omp critical
+		if (local_min_dist < final_min_dist)
+		{
+			final_min_dist = local_min_dist;
+			final_index = local_index;
+		}
+	
 	}
-	return index;
+	return final_index;
 }
 
 
@@ -245,4 +258,25 @@ void show_image(const cv::Mat& image, const std::string& title)
 	cv::imshow(title, image);
 	cv::waitKey(0);
 	cv::destroyAllWindows();
+}
+
+
+void thread_read_and_rescale(const std::vector<fs::path> subpaths, std::vector<cv::Mat>& im_subset, const cv::Size& subsize, std::mutex& mtx)
+{
+	std::vector<cv::Mat> buffer;
+	buffer.reserve(subpaths.size());
+
+	for (const auto& path : subpaths)
+	{
+		cv::Mat image = cv::imread(path.string(), cv::IMREAD_COLOR);
+		if (image.empty()) continue;
+
+		cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA);
+		buffer.push_back(std::move(image));
+	}
+
+	{
+		std::lock_guard<std::mutex> guard(mtx);
+		im_subset.insert(im_subset.end(), std::make_move_iterator(buffer.begin()), std::make_move_iterator(buffer.end()));
+	}
 }

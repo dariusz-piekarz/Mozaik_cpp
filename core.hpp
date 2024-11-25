@@ -7,6 +7,9 @@
 #include <iostream>
 #include <ctime>
 #include <cmath>
+#include <ranges>
+#include <thread>
+#include <mutex>
 #include <omp.h>
 
 
@@ -17,6 +20,33 @@
 
 
 namespace fs = std::filesystem;
+
+
+std::vector<cv::Mat> read_images2(const std::vector<fs::path>& paths, const cv::Size& subsize)
+{
+	std::vector<cv::Mat> images;
+	std::mutex mtx;
+	std::vector<std::thread> threads;
+	const int thread_count = 8;
+	const int total = static_cast<int>(paths.size());
+
+	std::vector<int> partition;
+	partition.reserve(thread_count + 1);
+
+	for (int i = 0; i <= thread_count; i++)
+		partition.push_back(static_cast<int>(std::floor(total * i / thread_count)));
+
+	for (int i = 0; i < thread_count; i++)
+	{
+		std::vector<fs::path> subrange(paths.begin() + partition[i], paths.begin() + partition[i + 1]);
+		threads.emplace_back(thread_read_and_rescale, subrange, std::ref(images), std::ref(subsize), std::ref(mtx));
+	}
+	for (auto& thread : threads) 
+		if (thread.joinable()) 
+			thread.join();
+
+	return images;
+}
 
 
 std::vector<cv::Mat> read_images(const std::vector<fs::path>& paths, const cv::Size& subsize)
@@ -156,19 +186,12 @@ void glue_images(const std::vector<std::vector<cv::Mat>>& decomposition, bool sh
 }
 
 
-void mozaik(void)
+void mozaik_core_app(std::string config_path)
 {
-	fs::path cfg_path = fs::path(__FILE__).parent_path();
-	std::string config_path = cfg_path.string() + "\\config.json";
-
 	Config config;
-
-
-	if (!fs::exists(config_path)) 
-		throw std::runtime_error("Error: The config file does not exist: " + config_path);
-	else
-		config = parse_config(config_path);
 	
+	config = parse_config(config_path);
+
 	if (!fs::exists(config.image_path))
 		throw std::runtime_error("Error: The main image file does not exist: " + config.image_path);
 
@@ -193,7 +216,7 @@ void mozaik(void)
 	spdlog::info("Reading sub images started.");
 	clock_t start1 = std::clock();
 
-	std::vector<cv::Mat> images = read_images(images_paths, cv::Size(std::get<0>(config.sub_images_size), std::get<1>(config.sub_images_size)));
+	std::vector<cv::Mat> images = read_images2(images_paths, cv::Size(std::get<0>(config.sub_images_size), std::get<1>(config.sub_images_size)));
 	clock_t end1 = std::clock();
 
 	if (images.empty())
@@ -201,7 +224,6 @@ void mozaik(void)
 
 	spdlog::info("Reading sub images completed in time: " + elapse_time(start1, end1) + " s.");
 	spdlog::info("Rescaling main image started.");
-
 
 	main_image_resize(image, config.image_size);
 
@@ -228,12 +250,12 @@ void mozaik(void)
 
 		spdlog::info("Filtration of sub images to main picture pixels completed in time: " + elapse_time(start3, end3) + " s.");
 	}
-	
+
 	spdlog::info("Combining pictures started.");
 
 	std::optional<std::string> save_to = config.output_image_path != "" ? std::optional<std::string>{config.output_image_path} : std::nullopt;
 	clock_t start4 = std::clock();
-	if(config.filtration)
+	if (config.filtration)
 		glue_images(matrix_images_f, config.show, save_to);
 	else
 		glue_images(matrix_images, config.show, save_to);
@@ -243,3 +265,31 @@ void mozaik(void)
 	spdlog::info("Program successfully run.");
 }
 
+
+void mozaik(void)
+{
+	fs::path cfg_path = fs::path(__FILE__).parent_path();
+	std::string config_path = cfg_path.string() + "\\config.json";
+
+
+	if (!fs::exists(config_path))
+		throw std::runtime_error("Error: The config file does not exist: " + config_path);
+
+	mozaik_core_app(config_path);
+}
+
+
+void mozaik2(void)
+{
+	std::string config_path;
+	std::cout << "Provide a path to the config file:\n";
+	std::cin >> config_path;
+
+	while (!fs::exists(config_path))
+	{
+		std::cout << "Provide a valid path to the config file:\n";
+		std::cin >> config_path;
+	}
+
+	mozaik_core_app(config_path);
+}
