@@ -5,8 +5,6 @@
 
 
 #include <iostream>
-#include <thread>
-#include <mutex>
 #include <vector>
 #include <tuple>
 #include <map>
@@ -16,7 +14,6 @@
 #include <filesystem>
 #include <cmath>
 #include <ctime>
-#include <ranges>
 #include <random>
 #include <omp.h>
 
@@ -116,7 +113,7 @@ std::string elapse_time(double start, double end)
 	double elapsed_seconds = (end - start) / CLOCKS_PER_SEC;
 	int minutes = static_cast<int>(elapsed_seconds) / 60;
 	double seconds = elapsed_seconds - (minutes * 60);
-	return std::format("{}.{}", minutes, seconds);
+	return std::format("{} min {} s.", minutes, static_cast<int>(seconds));
 }
 
 
@@ -151,6 +148,7 @@ cv::Mat project_image_to_color(const cv::Mat& image, const cv::Vec3b& color_BGR)
 inline std::vector<cv::Vec3b> calculate_means(const std::vector<cv::Mat>& images)
 {
 	std::vector<cv::Vec3b> means;
+	means.reserve(images.size());
 	cv::Scalar mean_scalar;
 
 	for (const auto& image : images)
@@ -161,7 +159,7 @@ inline std::vector<cv::Vec3b> calculate_means(const std::vector<cv::Mat>& images
 			static_cast<uchar>(mean_scalar[1]), // G
 			static_cast<uchar>(mean_scalar[2])); // R
 
-		means.push_back(mean_color);
+		means.emplace_back(mean_color);
 	}
 	return means;
 }
@@ -238,12 +236,13 @@ inline int select_closest_pict_random(const std::vector<cv::Vec3b>& picures_mean
 cv::Mat merge_images(const std::vector<std::vector<cv::Mat>>& image_grid)
 {
 	std::vector<cv::Mat> rows;
+	rows.reserve(image_grid.size());
 
 	for (const auto& row : image_grid)
 	{
 		cv::Mat row_image;
 		cv::hconcat(row, row_image);
-		rows.push_back(row_image);
+		rows.emplace_back(row_image);
 	}
 
 	cv::Mat final_image;

@@ -8,6 +8,6 @@ int main()
     clock_t start = std::clock();
     mozaik();
     clock_t end = std::clock();
-    spdlog::info("Mozaik total time execution: " + elapse_time(start, end) + " s.");
+    spdlog::info("Mozaik total time execution: " + elapse_time(start, end));
     return 0;
 }

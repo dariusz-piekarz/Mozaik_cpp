@@ -7,7 +7,6 @@
 #include <iostream>
 #include <ctime>
 #include <cmath>
-#include <ranges>
 #include <thread>
 #include <mutex>
 #include <omp.h>
@@ -22,12 +21,36 @@
 namespace fs = std::filesystem;
 
 
-std::vector<cv::Mat> read_images2(const std::vector<fs::path>& paths, const cv::Size& subsize)
+std::vector<cv::Mat> _read_images(const std::vector<fs::path>& paths, const cv::Size& subsize)
+{
+	std::vector<cv::Mat> images;
+	int iter = 0;
+	const int total = static_cast<int>(paths.size());
+
+	for (const auto& path : paths)
+	{
+		cv::Mat image = cv::imread(path.string(), cv::IMREAD_COLOR);
+		if (image.empty()) continue;
+
+		cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA);
+		images.push_back(image);
+		if (iter % 10 == 0)
+			display_progress_bar(iter, total);
+
+		iter++;
+
+	}
+	std::cout << std::endl;
+	return images;
+}
+
+
+std::vector<cv::Mat> _read_images2(const std::vector<fs::path>& paths, const cv::Size& subsize)
 {
 	std::vector<cv::Mat> images;
 	std::mutex mtx;
 	std::vector<std::thread> threads;
-	const int thread_count = 8;
+	const int thread_count = 12;
 	const int total = static_cast<int>(paths.size());
 
 	std::vector<int> partition;
@@ -52,24 +75,12 @@ std::vector<cv::Mat> read_images2(const std::vector<fs::path>& paths, const cv::
 std::vector<cv::Mat> read_images(const std::vector<fs::path>& paths, const cv::Size& subsize)
 {
 	std::vector<cv::Mat> images;
-	int iter = 0; 
-	const int total = static_cast<int>(paths.size()); 
+	const int total = static_cast<int>(paths.size());
 
-	for (const auto& path : paths) 
-	{
-		cv::Mat image = cv::imread(path.string(), cv::IMREAD_COLOR); 
-		if (image.empty()) continue;
-		
-		cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA); 
-		images.push_back(image); 
-		if (iter % 10 == 0) 
-			display_progress_bar(iter, total);
-		
-		iter++;
-		
-	}
-	std::cout << std::endl;
-	return images;
+	if (total > 48)
+		return _read_images2(paths, subsize);
+	else
+		return _read_images(paths, subsize);
 }
 
 
@@ -85,8 +96,8 @@ void main_image_resize(cv::Mat& image, std::tuple<int, int> new_size)
 	else
 	{
 		
-		int suggested_new_size_h = std::ceil(width / ratio);
-		int suggested_new_size_w = std::ceil(height * ratio);
+		int suggested_new_size_h = static_cast<int>(std::ceil(width / ratio));
+		int suggested_new_size_w = static_cast<int>(std::ceil(height * ratio));
 		std::cout << "Original proportion is not preserved with the provided new size. " <<
 			"If you want to rescale with preserving proportion press Y / y, otherwise press N / n.\n";
 		
@@ -127,7 +138,7 @@ std::vector<std::vector<cv::Mat>> restructure(std::vector<cv::Mat>& subimages, c
 {
 	int width = image.cols;
 	int height = image.rows;
-	int subim_len = subimages.size();
+	int subim_len = static_cast<int>(subimages.size());
 
 	std::vector<std::vector<cv::Mat>> ret_image(height, std::vector<cv::Mat>(width));
 
@@ -150,8 +161,9 @@ std::vector<std::vector<cv::Mat>> restructure(std::vector<cv::Mat>& subimages, c
 	else if (strategy == "pixel_mean_random")
 	{
 		const std::vector<cv::Vec3b> means = calculate_means(subimages);
-		const int rank = std::ceil(24. / 1117. * static_cast<double>(subim_len) + 5.);
+		const int rank = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subim_len) + 5.));
 		std::cout << rank << std::endl;
+
 		#pragma omp parallel for collapse(2)
 		for (int i = 0; i < height; i++)
 			for (int j = 0; j < width; j++)
@@ -207,7 +219,7 @@ void mozaik_core_app(std::string config_path)
 	if (images_paths.empty())
 		throw std::runtime_error("The path: " + config.filler_images_dir_path + ", contains no images with extensions [jpg, JPG, JPEG, jpeg, png, PNG].");
 
-	spdlog::info("Collecting paths completed in time: " + elapse_time(start0, end0) + " s.");
+	spdlog::info("Collecting paths completed in time: " + elapse_time(start0, end0));
 	spdlog::info("Reading main image started.");
 
 	cv::Mat image = cv::imread(config.image_path, cv::IMREAD_COLOR);
@@ -216,13 +228,13 @@ void mozaik_core_app(std::string config_path)
 	spdlog::info("Reading sub images started.");
 	clock_t start1 = std::clock();
 
-	std::vector<cv::Mat> images = read_images2(images_paths, cv::Size(std::get<0>(config.sub_images_size), std::get<1>(config.sub_images_size)));
+	std::vector<cv::Mat> images = read_images(images_paths, cv::Size(std::get<0>(config.sub_images_size), std::get<1>(config.sub_images_size)));
 	clock_t end1 = std::clock();
 
 	if (images.empty())
 		throw std::runtime_error("Set of images is empty.");
 
-	spdlog::info("Reading sub images completed in time: " + elapse_time(start1, end1) + " s.");
+	spdlog::info("Reading sub images completed in time: " + elapse_time(start1, end1));
 	spdlog::info("Rescaling main image started.");
 
 	main_image_resize(image, config.image_size);
@@ -234,7 +246,7 @@ void mozaik_core_app(std::string config_path)
 	std::vector<std::vector<cv::Mat>> matrix_images = restructure(images, image, config.strategy);
 	clock_t end2 = std::clock();
 
-	spdlog::info("Reordering of sub images completed in time: " + elapse_time(start2, end2) + " s.");
+	spdlog::info("Reordering of sub images completed in time: " + elapse_time(start2, end2));
 
 	std::vector<std::vector<cv::Mat>> matrix_images_f;
 
@@ -248,7 +260,7 @@ void mozaik_core_app(std::string config_path)
 
 		freeMemory(matrix_images);
 
-		spdlog::info("Filtration of sub images to main picture pixels completed in time: " + elapse_time(start3, end3) + " s.");
+		spdlog::info("Filtration of sub images to main picture pixels completed in time: " + elapse_time(start3, end3));
 	}
 
 	spdlog::info("Combining pictures started.");
@@ -261,7 +273,7 @@ void mozaik_core_app(std::string config_path)
 		glue_images(matrix_images, config.show, save_to);
 	clock_t end4 = std::clock();
 
-	spdlog::info("Combining pictures completed in time: " + elapse_time(start4, end4) + " s.");
+	spdlog::info("Combining pictures completed in time: " + elapse_time(start4, end4));
 	spdlog::info("Program successfully run.");
 }
 
