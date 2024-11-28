@@ -161,8 +161,7 @@ std::vector<std::vector<cv::Mat>> restructure(std::vector<cv::Mat>& subimages, c
 	else if (strategy == "pixel_mean_random")
 	{
 		const std::vector<cv::Vec3b> means = calculate_means(subimages);
-		const int rank = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subim_len) + 5.));
-		std::cout << rank << std::endl;
+		const int rank = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subim_len) + 5.));
 
 		#pragma omp parallel for collapse(2)
 		for (int i = 0; i < height; i++)
