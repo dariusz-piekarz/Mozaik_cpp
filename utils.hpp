@@ -165,35 +165,27 @@ inline std::vector<cv::Vec3b> calculate_means(const std::vector<cv::Mat>& images
 }
 
 
+inline double l2Norm(cv::Vec3b v, cv::Vec3b w)
+{
+	return std::sqrt(std::pow(static_cast<double>(v[0] - w[0]), 2) + std::pow(static_cast<double>(v[1] - w[1]), 2) + std::pow(static_cast<double>(v[2] - w[2]), 2));
+}
+
+
 inline int closest_image(const std::vector<cv::Vec3b>& means, const cv::Vec3b& color_BGR)
 {
 	int final_index = 0;
 	double final_min_dist = std::numeric_limits<double>::max();
 
-	#pragma omp parallel
+	for (int i = 0; i < means.size(); i++)
 	{
-		double local_min_dist = std::numeric_limits<double>::max();
-		int local_index = 0;
-
-		#pragma omp for nowait
-		for (int i = 0; i < means.size(); i++)
+		double dist = l2Norm(means[i], color_BGR);
+		if (dist < final_min_dist)
 		{
-			double dist = cv::norm(means[i] - color_BGR, cv::NORM_L2);
-			if (dist < local_min_dist)
-			{
-				local_min_dist = dist;
-				local_index = i;
-			}
+			final_min_dist = dist;
+			final_index = i;
 		}
-
-		#pragma omp critical
-		if (local_min_dist < final_min_dist)
-		{
-			final_min_dist = local_min_dist;
-			final_index = local_index;
-		}
-	
 	}
+
 	return final_index;
 }
 
@@ -209,7 +201,7 @@ inline int select_closest_pict_random(const std::vector<cv::Vec3b>& picures_mean
 		#pragma omp for nowait
 		for (int i = 0; i < picures_means_BGR.size(); i++)
 		{
-			double distance = cv::norm(picures_means_BGR[i] - color_BGR, cv::NORM_L2);
+			double distance = l2Norm(picures_means_BGR[i], color_BGR);
 			local_dists.emplace_back(distance, i);
 		}
 		#pragma omp critical
