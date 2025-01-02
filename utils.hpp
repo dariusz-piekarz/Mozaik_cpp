@@ -16,6 +16,8 @@
 #include <ctime>
 #include <random>
 #include <omp.h>
+#include <atomic>
+#include <mutex>
 
 
 #include <json/json.h>
@@ -72,6 +74,22 @@ inline std::vector<fs::path> find_paths(const std::string& dirname, const std::s
 }
 
 
+std::vector<fs::path> all_image_paths(const std::string& dirname)
+{
+	std::vector<fs::path> all_paths;
+
+	const std::vector<std::string> extensions({ ".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG" });
+	for (const auto& ext : extensions)
+	{
+		auto temp_paths = find_paths(dirname, ext);
+
+		if (!temp_paths.empty())
+			all_paths.insert(all_paths.end(), temp_paths.begin(), temp_paths.end());
+	}
+	return all_paths;
+}
+
+
 void display_progress_bar(int& progress, int total, int bar_width = 100)
 {
 	float percentage = static_cast<float>(progress) / total;
@@ -91,21 +109,6 @@ void display_progress_bar(int& progress, int total, int bar_width = 100)
 	std::cout.flush();
 }
 
-
-std::vector<fs::path> all_image_paths(const std::string& dirname)
-{
-	std::vector<fs::path> all_paths;
-
-	const std::vector<std::string> extensions({ ".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG" });
-	for (const auto& ext : extensions)
-	{
-		auto temp_paths = find_paths(dirname, ext);
-
-		if (!temp_paths.empty())
-			all_paths.insert(all_paths.end(), temp_paths.begin(), temp_paths.end());
-	}
-	return all_paths;
-}
 
 
 std::string elapse_time(double start, double end)
@@ -167,7 +170,11 @@ inline std::vector<cv::Vec3b> calculate_means(const std::vector<cv::Mat>& images
 
 inline double l2Norm(cv::Vec3b v, cv::Vec3b w)
 {
-	return std::sqrt(std::pow(static_cast<double>(v[0] - w[0]), 2) + std::pow(static_cast<double>(v[1] - w[1]), 2) + std::pow(static_cast<double>(v[2] - w[2]), 2));
+	return std::sqrt(
+		std::pow(static_cast<double>(v[0] - w[0]), 2) +
+		std::pow(static_cast<double>(v[1] - w[1]), 2) +
+		std::pow(static_cast<double>(v[2] - w[2]), 2)
+	);
 }
 
 
@@ -252,8 +259,9 @@ void show_image(const cv::Mat& image, const std::string& title)
 }
 
 
-void thread_read_and_rescale(const std::vector<fs::path> subpaths, std::vector<cv::Mat>& im_subset, const cv::Size& subsize, std::mutex& mtx)
-{
+void thread_read_and_rescale(const std::vector<fs::path> subpaths, std::vector<cv::Mat>& im_subset, const cv::Size& subsize, std::mutex& mtx, std::atomic<int>& iter, const int& total)
+{ 
+	int progress = 0;
 	std::vector<cv::Mat> buffer;
 	buffer.reserve(subpaths.size());
 
@@ -264,7 +272,12 @@ void thread_read_and_rescale(const std::vector<fs::path> subpaths, std::vector<c
 
 		cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA);
 		buffer.push_back(std::move(image));
-	}
+		iter += 1;
+		progress = iter;
+		if (progress % 10 == 0 || progress == total)
+			display_progress_bar(progress, total, 100);
+		
+	} 
 
 	{
 		std::lock_guard<std::mutex> guard(mtx);
