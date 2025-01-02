@@ -9,7 +9,9 @@
 #include <cmath>
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include <omp.h>
+#include <optional>
 
 
 #include <spdlog/spdlog.h>
@@ -26,7 +28,6 @@ std::vector<cv::Mat> _read_images(const std::vector<fs::path>& paths, const cv::
 	std::vector<cv::Mat> images;
 	int iter = 0;
 	const int total = static_cast<int>(paths.size());
-
 	for (const auto& path : paths)
 	{
 		cv::Mat image = cv::imread(path.string(), cv::IMREAD_COLOR);
@@ -34,11 +35,11 @@ std::vector<cv::Mat> _read_images(const std::vector<fs::path>& paths, const cv::
 
 		cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA);
 		images.push_back(image);
-		if (iter % 10 == 0)
-			display_progress_bar(iter, total);
 
 		iter++;
 
+		if (iter % 10 == 0 || iter == total)
+			display_progress_bar(iter, total);
 	}
 	std::cout << std::endl;
 	return images;
@@ -50,8 +51,10 @@ std::vector<cv::Mat> _read_images2(const std::vector<fs::path>& paths, const cv:
 	std::vector<cv::Mat> images;
 	std::mutex mtx;
 	std::vector<std::thread> threads;
+	
 	const int thread_count = 12;
 	const int total = static_cast<int>(paths.size());
+	std::atomic<int> iter(0);
 
 	std::vector<int> partition;
 	partition.reserve(thread_count + 1);
@@ -62,11 +65,14 @@ std::vector<cv::Mat> _read_images2(const std::vector<fs::path>& paths, const cv:
 	for (int i = 0; i < thread_count; i++)
 	{
 		std::vector<fs::path> subrange(paths.begin() + partition[i], paths.begin() + partition[i + 1]);
-		threads.emplace_back(thread_read_and_rescale, subrange, std::ref(images), std::ref(subsize), std::ref(mtx));
+		threads.emplace_back(thread_read_and_rescale, subrange, std::ref(images), std::ref(subsize), std::ref(mtx), std::ref(iter), std::ref(total));
 	}
+
 	for (auto& thread : threads) 
 		if (thread.joinable()) 
 			thread.join();
+
+	std::cout << std::endl;
 
 	return images;
 }
@@ -77,7 +83,7 @@ std::vector<cv::Mat> read_images(const std::vector<fs::path>& paths, const cv::S
 	std::vector<cv::Mat> images;
 	const int total = static_cast<int>(paths.size());
 
-	if (total > 48)
+	if (total > 50)
 		return _read_images2(paths, subsize);
 	else
 		return _read_images(paths, subsize);
@@ -161,7 +167,7 @@ std::vector<std::vector<cv::Mat>> restructure(std::vector<cv::Mat>& subimages, c
 	else if (strategy == "pixel_mean_random")
 	{
 		const std::vector<cv::Vec3b> means = calculate_means(subimages);
-		const int rank = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subim_len) + 5.));
+		const int rank = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subim_len) + 2.));
 
 		#pragma omp parallel for collapse(2)
 		for (int i = 0; i < height; i++)
