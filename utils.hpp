@@ -276,7 +276,6 @@ void thread_read_and_rescale(const std::vector<fs::path> subpaths, std::vector<c
 		progress = iter;
 		if (progress % 10 == 0 || progress == total)
 			display_progress_bar(progress, total, 100);
-		
 	} 
 
 	{
