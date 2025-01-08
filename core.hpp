@@ -1,17 +1,13 @@
 #pragma once
 
-
-#include "utils.hpp"
-
-
-#include <iostream>
-#include <ctime>
-#include <cmath>
-#include <thread>
-#include <mutex>
 #include <atomic>
-#include <omp.h>
+#include <cmath>
+#include <ctime>
+#include <iostream>
+#include <mutex>
 #include <optional>
+#include <thread>
+#include <omp.h>
 
 
 #include <spdlog/spdlog.h>
@@ -20,14 +16,30 @@
 #include <opencv2/opencv.hpp>
 
 
+#include "utils.hpp"
+
+
 namespace fs = std::filesystem;
 
-
-std::vector<cv::Mat> _read_images(const std::vector<fs::path>& paths, const cv::Size& subsize)
+/**
+ * Function to read images from a given list of paths and resize them to a specified size.
+ *
+ * @param paths A vector of filesystem paths pointing to the images to be read.
+ * @param subsize The target size to which each image should be resized.
+ *
+ * @return A vector of cv::Mat objects, each representing an image after resizing.
+ *
+ * This function reads images from the provided paths, resizes them to the specified subsize,
+ * and returns a vector of the resized images. If an image cannot be read or is empty,
+ * it is skipped and not included in the returned vector.
+ *
+ * The function also displays a progress bar to indicate the progress of image reading.
+ */
+std::vector<cv::Mat> _readImages(const std::vector<fs::path>& paths, const cv::Size& subsize)
 {
 	std::vector<cv::Mat> images;
 	int iter = 0;
-	const int total = static_cast<int>(paths.size());
+	const int TOTAL = static_cast<int>(paths.size());
 	for (const auto& path : paths)
 	{
 		cv::Mat image = cv::imread(path.string(), cv::IMREAD_COLOR);
@@ -38,39 +50,61 @@ std::vector<cv::Mat> _read_images(const std::vector<fs::path>& paths, const cv::
 
 		iter++;
 
-		if (iter % 10 == 0 || iter == total)
-			display_progress_bar(iter, total);
+		if (iter % 10 == 0 || iter == TOTAL)
+		{
+			displayProgressBar(iter, TOTAL);
+		}
 	}
 	std::cout << std::endl;
 	return images;
 }
 
 
-std::vector<cv::Mat> _read_images2(const std::vector<fs::path>& paths, const cv::Size& subsize)
+/**
+ * Function to read images from a given list of paths and resize them to a specified size using multithreading approach.
+ *
+ * @param paths A vector of filesystem paths pointing to the images to be read.
+ * @param subsize The target size to which each image should be resized.
+ *
+ * @return A vector of cv::Mat objects, each representing an image after resizing.
+ *
+ * This function reads images using multithreading approach from the provided paths, resizes them to the specified subsize,
+ * and returns a vector of the resized images. If an image cannot be read or is empty,
+ * it is skipped and not included in the returned vector.
+ *
+ * The function also displays a progress bar to indicate the progress of image reading.
+ */
+std::vector<cv::Mat> _readImages2(const std::vector<fs::path>& paths, const cv::Size& subsize)
 {
 	std::vector<cv::Mat> images;
 	std::mutex mtx;
 	std::vector<std::thread> threads;
 	
-	const int thread_count = 12;
-	const int total = static_cast<int>(paths.size());
+	const int THREAD_COUNT = 12;
+	const int TOTAL = static_cast<int>(paths.size());
 	std::atomic<int> iter(0);
 
 	std::vector<int> partition;
-	partition.reserve(thread_count + 1);
+	partition.reserve(THREAD_COUNT + 1);
 
-	for (int i = 0; i <= thread_count; i++)
-		partition.push_back(static_cast<int>(std::floor(total * i / thread_count)));
+	for (int i = 0; i <= THREAD_COUNT; i++)
+	{
+		partition.push_back(static_cast<int>(std::floor(TOTAL * i / THREAD_COUNT)));
+	}
 
-	for (int i = 0; i < thread_count; i++)
+	for (int i = 0; i < THREAD_COUNT; i++)
 	{
 		std::vector<fs::path> subrange(paths.begin() + partition[i], paths.begin() + partition[i + 1]);
-		threads.emplace_back(thread_read_and_rescale, subrange, std::ref(images), std::ref(subsize), std::ref(mtx), std::ref(iter), std::ref(total));
+		threads.emplace_back(threadReadAndRescale, subrange, std::ref(images), std::ref(subsize), std::ref(mtx), std::ref(iter), std::ref(TOTAL));
 	}
 
 	for (auto& thread : threads) 
-		if (thread.joinable()) 
+	{
+		if (thread.joinable())
+		{
 			thread.join();
+		}
+	}
 
 	std::cout << std::endl;
 
@@ -78,19 +112,48 @@ std::vector<cv::Mat> _read_images2(const std::vector<fs::path>& paths, const cv:
 }
 
 
-std::vector<cv::Mat> read_images(const std::vector<fs::path>& paths, const cv::Size& subsize)
+/**
+ * Function to read images from a given list of paths and resize them to a specified size using either multithreading approach .
+ *
+ * @param paths A vector of filesystem paths pointing to the images to be read.
+ * @param subsize The target size to which each image should be resized.
+ *
+ * @return A vector of cv::Mat objects, each representing an image after resizing.
+ *
+ * This function reads images using multithreading approach from the provided paths, resizes them to the specified subsize,
+ * and returns a vector of the resized images. If an image cannot be read or is empty,
+ * it is skipped and not included in the returned vector.
+ *
+ * The function also displays a progress bar to indicate the progress of image reading.
+ */
+std::vector<cv::Mat> readImages(const std::vector<fs::path>& paths, const cv::Size& subsize)
 {
 	std::vector<cv::Mat> images;
-	const int total = static_cast<int>(paths.size());
+	const int TOTAL = static_cast<int>(paths.size());
 
-	if (total > 50)
-		return _read_images2(paths, subsize);
+	if (TOTAL > 50)
+	{
+		return _readImages2(paths, subsize);
+	}
 	else
-		return _read_images(paths, subsize);
+	{
+		return _readImages(paths, subsize);
+	}
 }
 
 
-void main_image_resize(cv::Mat& image, std::tuple<int, int> new_size)
+/**
+ * Function to resize the main image.
+ *
+ * @param image A cv::Mat - the main image as cv Matrix.
+ * @param new_size A tuple of ints specifying the target size to which the image should be resized.
+ *
+ * @return A  cv::Mat object, each representing an image after resizing.
+ *
+ * Function to resize the main image: if proportion of the original image are not preserved,
+ *	then the function ask if proceed, proposing alternative proportions based on user preferences.
+ */
+void mainImageResize(cv::Mat& image, std::tuple<int, int> new_size)
 {
 	int width = std::get<0>(new_size);
 	int height = std::get<1>(new_size);
@@ -98,7 +161,9 @@ void main_image_resize(cv::Mat& image, std::tuple<int, int> new_size)
 	double new_ratio = static_cast<double>(image.cols) / static_cast<double>(image.rows);
 
 	if (ratio == new_ratio)
+	{
 		cv::resize(image, image, cv::Size(width, height), 0, 0, cv::INTER_AREA);
+	}
 	else
 	{
 		
@@ -130,16 +195,41 @@ void main_image_resize(cv::Mat& image, std::tuple<int, int> new_size)
 			}
 
 			if (decision == "W" || decision == "w")
+			{
 				cv::resize(image, image, cv::Size(width, suggested_new_size_h), 0, 0, cv::INTER_AREA);
+			}
 			else if (decision == "H" || decision == "h")
+			{
 				cv::resize(image, image, cv::Size(suggested_new_size_w, height), 0, 0, cv::INTER_AREA);
+			}
 		}
 		else
+		{
 			cv::resize(image, image, cv::Size(width, height), 0, 0, cv::INTER_AREA);
+		}
 	}
 }
 
 
+/**
+ * Function which arranges list of images to a matrix which has the same size as the main picture matrix.
+ * Reconstruction take a place with respect to the selected strategy. 
+ *
+ * @param subimages A std::vector<cv::Mat>& - images which replace pixels of the main image.
+ * @param image A cv::Mat - the input image.
+ * @param strategy A std::string& - 'pixel_mean', 'pixel_mean_random' or 'duplication' - way of fitting subimages to pixels of the main image.
+ * 
+ * @return std::vector<std::vector<cv::Mat>> A matrix of cv::Matrices build from the images based on pixels of the main picture and selected strategy
+ * 
+ * This function take as arguments a list of cv::Mat which are images, to each pixel in the main image cv::Mat there is found a cv::Mat image in the list
+ * of images based on the 3 strategies:
+ * - 'pixel_mean' - there is found a mean pixel to each cv::Mat in the images vector and the image with the closest mean pixel to a pixel in the main cv::Mat is 
+ *	 found based on l2 norm,
+ * - 'pixel_mean_random' - similarly as in the case above, there is found a population of images with a smallest l2 distance between mean pixels and the image pixel,
+ *   selection is based on the uniform distribution from the selected population of images with the smallest l2 distances,
+ * - 'duplication' - if number of images is smaller than number of pixels in the image, to each row of pixels there are copied cv::Mat images, so that the entire picture
+ *   is filled.
+ */
 std::vector<std::vector<cv::Mat>> restructure(std::vector<cv::Mat>& subimages, const cv::Mat& image, const std::string& strategy = "pixel_mean_random")
 {
 	int width = image.cols;
@@ -152,30 +242,44 @@ std::vector<std::vector<cv::Mat>> restructure(std::vector<cv::Mat>& subimages, c
 	{
 		#pragma omp parallel for collapse(2)
 		for (int i = 0; i < height; i++)
+		{
 			for (int j = 0; j < width; j++)
+			{
 				ret_image[i][j] = subimages[(i * width + j) % subim_len];
+			}
+		}
 	}
 	else if (strategy == "pixel_mean")
 	{
-		const std::vector<cv::Vec3b> means = calculate_means(subimages);
+		const std::vector<cv::Vec3b> MEANS = calculateMeans(subimages);
 
 		#pragma omp parallel for collapse(2)
 		for (int i = 0; i < height; i++)
+		{
 			for (int j = 0; j < width; j++)
-				ret_image[i][j] = subimages[closest_image(means, image.at<cv::Vec3b>(i, j))];
+			{
+				ret_image[i][j] = subimages[closestImage(MEANS, image.at<cv::Vec3b>(i, j))];
+			}
+		}
 	}
 	else if (strategy == "pixel_mean_random")
 	{
-		const std::vector<cv::Vec3b> means = calculate_means(subimages);
-		const int rank = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subim_len) + 2.));
+		const std::vector<cv::Vec3b> MEANS = calculateMeans(subimages);
+		const int RANK = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subim_len) + 2.));
 
 		#pragma omp parallel for collapse(2)
 		for (int i = 0; i < height; i++)
+		{
 			for (int j = 0; j < width; j++)
-				ret_image[i][j] = subimages[select_closest_pict_random(means, image.at<cv::Vec3b>(i, j), rank )];
+			{
+				ret_image[i][j] = subimages[selectClosestPictRandom(MEANS, image.at<cv::Vec3b>(i, j), RANK)];
+			}
+		}
 	}
 	else
+	{
 		throw std::invalid_argument("Unsupported strategy!");
+	}
 	return ret_image;
 }
 
@@ -186,45 +290,55 @@ std::vector<std::vector<cv::Mat>> project(const std::vector<std::vector<cv::Mat>
 	#pragma omp parallel for collapse(2)
 	for (int i = 0; i < image.rows; i++)
 		for (int j = 0; j < image.cols; j++)
-			output[i][j] = project_image_to_color(decomposition[i][j], image.at<cv::Vec3b>(i, j));
+			output[i][j] = projectImageToColor(decomposition[i][j], image.at<cv::Vec3b>(i, j));
 	return output; 
 }
 
 
-void glue_images(const std::vector<std::vector<cv::Mat>>& decomposition, bool show = true, std::optional<std::string> save_to = std::nullopt)
+void glueImages(const std::vector<std::vector<cv::Mat>>& decomposition, bool show = true, std::optional<std::string> save_to = std::nullopt)
 {
-	cv::Mat merged_image = merge_images(decomposition);
+	cv::Mat merged_image = mergeImages(decomposition);
 
 	if (show)
-		show_image(merged_image, "Merged image");
+	{
+		showImage(merged_image, "Merged image");
+	}
 
 	if (save_to.has_value())
+	{
 		cv::imwrite(save_to.value(), merged_image);
+	}
 }
 
 
-void mozaik_core_app(std::string config_path)
+void mozaikCoreApp(std::string config_path)
 {
 	Config config;
 	
-	config = parse_config(config_path);
+	config = parseConfig(config_path);
 
 	if (!fs::exists(config.image_path))
+	{
 		throw std::runtime_error("Error: The main image file does not exist: " + config.image_path);
+	}
 
 	if (!fs::exists(config.filler_images_dir_path))
+	{
 		throw std::runtime_error("Error: The directory where sub images should be stored does not exist: " + config.filler_images_dir_path);
+	}
 
 	spdlog::info("Collecting paths.");
 	clock_t start0 = std::clock();
 
-	std::vector<fs::path> images_paths = all_image_paths(config.filler_images_dir_path);
+	std::vector<fs::path> images_paths = allImagePaths(config.filler_images_dir_path);
 	clock_t end0 = std::clock();
 
 	if (images_paths.empty())
+	{
 		throw std::runtime_error("The path: " + config.filler_images_dir_path + ", contains no images with extensions [jpg, JPG, JPEG, jpeg, png, PNG].");
+	}
 
-	spdlog::info("Collecting paths completed in time: " + elapse_time(start0, end0));
+	spdlog::info("Collecting paths completed in time: " + elapseTime(start0, end0));
 	spdlog::info("Reading main image started.");
 
 	cv::Mat image = cv::imread(config.image_path, cv::IMREAD_COLOR);
@@ -233,16 +347,18 @@ void mozaik_core_app(std::string config_path)
 	spdlog::info("Reading sub images started.");
 	clock_t start1 = std::clock();
 
-	std::vector<cv::Mat> images = read_images(images_paths, cv::Size(std::get<0>(config.sub_images_size), std::get<1>(config.sub_images_size)));
+	std::vector<cv::Mat> images = readImages(images_paths, cv::Size(std::get<0>(config.sub_images_size), std::get<1>(config.sub_images_size)));
 	clock_t end1 = std::clock();
 
 	if (images.empty())
+	{
 		throw std::runtime_error("Set of images is empty.");
+	}
 
-	spdlog::info("Reading sub images completed in time: " + elapse_time(start1, end1));
+	spdlog::info("Reading sub images completed in time: " + elapseTime(start1, end1));
 	spdlog::info("Rescaling main image started.");
 
-	main_image_resize(image, config.image_size);
+	mainImageResize(image, config.image_size);
 
 	spdlog::info("Rescaling main image completed.");
 	spdlog::info("Reordering of sub images started.");
@@ -251,7 +367,7 @@ void mozaik_core_app(std::string config_path)
 	std::vector<std::vector<cv::Mat>> matrix_images = restructure(images, image, config.strategy);
 	clock_t end2 = std::clock();
 
-	spdlog::info("Reordering of sub images completed in time: " + elapse_time(start2, end2));
+	spdlog::info("Reordering of sub images completed in time: " + elapseTime(start2, end2));
 
 	std::vector<std::vector<cv::Mat>> matrix_images_f;
 
@@ -265,7 +381,7 @@ void mozaik_core_app(std::string config_path)
 
 		freeMemory(matrix_images);
 
-		spdlog::info("Filtration of sub images to main picture pixels completed in time: " + elapse_time(start3, end3));
+		spdlog::info("Filtration of sub images to main picture pixels completed in time: " + elapseTime(start3, end3));
 	}
 
 	spdlog::info("Combining pictures started.");
@@ -273,12 +389,16 @@ void mozaik_core_app(std::string config_path)
 	std::optional<std::string> save_to = config.output_image_path != "" ? std::optional<std::string>{config.output_image_path} : std::nullopt;
 	clock_t start4 = std::clock();
 	if (config.filtration)
-		glue_images(matrix_images_f, config.show, save_to);
+	{
+		glueImages(matrix_images_f, config.show, save_to);
+	}
 	else
-		glue_images(matrix_images, config.show, save_to);
+	{
+		glueImages(matrix_images, config.show, save_to);
+	}
 	clock_t end4 = std::clock();
 
-	spdlog::info("Combining pictures completed in time: " + elapse_time(start4, end4));
+	spdlog::info("Combining pictures completed in time: " + elapseTime(start4, end4));
 	spdlog::info("Program successfully run.");
 }
 
@@ -290,9 +410,11 @@ void mozaik(void)
 
 
 	if (!fs::exists(config_path))
+	{
 		throw std::runtime_error("Error: The config file does not exist: " + config_path);
+	}
 
-	mozaik_core_app(config_path);
+	mozaikCoreApp(config_path);
 }
 
 
@@ -308,5 +430,5 @@ void mozaik2(void)
 		std::cin >> config_path;
 	}
 
-	mozaik_core_app(config_path);
+	mozaikCoreApp(config_path);
 }
