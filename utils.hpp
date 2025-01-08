@@ -4,25 +4,24 @@
 #define _CRT_SECURE_NO_WARNINGS // switches off warnings in glob.hpp
 
 
-#include <iostream>
-#include <vector>
-#include <tuple>
-#include <map>
-#include <format>
-#include <fstream>
 #include <algorithm>
-#include <filesystem>
+#include <atomic>
 #include <cmath>
 #include <ctime>
-#include <random>
-#include <omp.h>
-#include <atomic>
+#include <filesystem>
+#include <format>
+#include <fstream>
+#include <iostream>
+#include <map>
 #include <mutex>
+#include <random>
+#include <tuple>
+#include <vector>
+#include <omp.h>
 
 
 #include <json/json.h>
 #include <spdlog/spdlog.h>
-
 
 
 #include <opencv2/opencv.hpp>
@@ -39,13 +38,13 @@ struct Config
 	std::tuple<int, int> image_size;
 	std::tuple<int, int> sub_images_size;
 	std::string strategy;
-	bool filtration;
-	bool show;
+	bool filtration = false;
+	bool show = false;
 	std::string output_image_path;
 };
 
 
-Config parse_config(const std::string& config_file_path)
+Config parseConfig(const std::string& config_file_path)
 {
 	std::ifstream file(config_file_path);
 	Json::Reader reader;
@@ -67,30 +66,32 @@ Config parse_config(const std::string& config_file_path)
 }
 
 
-inline std::vector<fs::path> find_paths(const std::string& dirname, const std::string& extension = ".jpg")
+inline std::vector<fs::path> findPaths(const std::string& dirname, const std::string& extension = ".jpg")
 {
     std::string pattern = std::format("{}\\*{}", dirname, extension);
     return glob::glob(pattern);
 }
 
 
-std::vector<fs::path> all_image_paths(const std::string& dirname)
+std::vector<fs::path> allImagePaths(const std::string& dirname)
 {
 	std::vector<fs::path> all_paths;
 
-	const std::vector<std::string> extensions({ ".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG" });
-	for (const auto& ext : extensions)
+	const std::vector<std::string> EXTENSIONS({ ".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG" });
+	for (const auto& ext : EXTENSIONS)
 	{
-		auto temp_paths = find_paths(dirname, ext);
+		auto temp_paths = findPaths(dirname, ext);
 
 		if (!temp_paths.empty())
+		{
 			all_paths.insert(all_paths.end(), temp_paths.begin(), temp_paths.end());
+		}
 	}
 	return all_paths;
 }
 
 
-void display_progress_bar(int& progress, int total, int bar_width = 100)
+void displayProgressBar(int& progress, int total, int bar_width = 100)
 {
 	float percentage = static_cast<float>(progress) / total;
 	int completed = static_cast<int>(percentage * bar_width);
@@ -100,9 +101,13 @@ void display_progress_bar(int& progress, int total, int bar_width = 100)
 	for (int i = 0; i < bar_width; ++i)
 	{
 		if (i < completed)
+		{
 			std::cout << "#";
+		}
 		else
+		{
 			std::cout << "-";
+		}
 	}
 
 	std::cout << "] " << static_cast<int>(percentage * 100) << "%";
@@ -111,7 +116,7 @@ void display_progress_bar(int& progress, int total, int bar_width = 100)
 
 
 
-std::string elapse_time(double start, double end)
+std::string elapseTime(double start, double end)
 {
 	double elapsed_seconds = (end - start) / CLOCKS_PER_SEC;
 	int minutes = static_cast<int>(elapsed_seconds) / 60;
@@ -125,7 +130,9 @@ void freeMemory(std::vector<std::vector<cv::Mat>>& decomposition)
 	for (auto& row : decomposition)
 	{
 		for (auto& mat : row)
+		{
 			mat.release();
+		}
 		row.clear();
 	}
 	decomposition.clear();
@@ -133,7 +140,7 @@ void freeMemory(std::vector<std::vector<cv::Mat>>& decomposition)
 }
 
 
-cv::Mat project_image_to_color(const cv::Mat& image, const cv::Vec3b& color_BGR)
+cv::Mat projectImageToColor(const cv::Mat& image, const cv::Vec3b& color_BGR)
 {
 	cv::Mat new_image;
 	std::vector<cv::Mat> channels(3);
@@ -141,14 +148,16 @@ cv::Mat project_image_to_color(const cv::Mat& image, const cv::Vec3b& color_BGR)
 
 	cv::split(image, channels);
 	for (int i = 0; i < 3; ++i)
+	{
 		channels[i] *= ratios[i];
+	}
 	cv::merge(channels, new_image);
 	new_image.convertTo(new_image, CV_8UC3);
 	return new_image;
 }
 
 
-inline std::vector<cv::Vec3b> calculate_means(const std::vector<cv::Mat>& images)
+inline std::vector<cv::Vec3b> calculateMeans(const std::vector<cv::Mat>& images)
 {
 	std::vector<cv::Vec3b> means;
 	means.reserve(images.size());
@@ -178,7 +187,7 @@ inline double l2Norm(cv::Vec3b v, cv::Vec3b w)
 }
 
 
-inline int closest_image(const std::vector<cv::Vec3b>& means, const cv::Vec3b& color_BGR)
+inline int closestImage(const std::vector<cv::Vec3b>& means, const cv::Vec3b& color_BGR)
 {
 	int final_index = 0;
 	double final_min_dist = std::numeric_limits<double>::max();
@@ -197,7 +206,7 @@ inline int closest_image(const std::vector<cv::Vec3b>& means, const cv::Vec3b& c
 }
 
 
-inline int select_closest_pict_random(const std::vector<cv::Vec3b>& picures_means_BGR, const cv::Vec3b& color_BGR, int rank = 30)
+inline int selectClosestPictRandom(const std::vector<cv::Vec3b>& picures_means_BGR, const cv::Vec3b& color_BGR, int rank = 30)
 {
 	std::vector<std::pair<double, int>> dists;
 
@@ -219,7 +228,9 @@ inline int select_closest_pict_random(const std::vector<cv::Vec3b>& picures_mean
 
 	std::vector<int> closest_indices;
 	for (int i = 0; i < std::min(rank, static_cast<int>(dists.size())); ++i)
+	{
 		closest_indices.push_back(dists[i].second);
+	}
 	
 	if (!closest_indices.empty())
 	{
@@ -232,7 +243,7 @@ inline int select_closest_pict_random(const std::vector<cv::Vec3b>& picures_mean
 }
 
 
-cv::Mat merge_images(const std::vector<std::vector<cv::Mat>>& image_grid)
+cv::Mat mergeImages(const std::vector<std::vector<cv::Mat>>& image_grid)
 {
 	std::vector<cv::Mat> rows;
 	rows.reserve(image_grid.size());
@@ -251,7 +262,7 @@ cv::Mat merge_images(const std::vector<std::vector<cv::Mat>>& image_grid)
 }
 
 
-void show_image(const cv::Mat& image, const std::string& title)
+void showImage(const cv::Mat& image, const std::string& title)
 {
 	cv::imshow(title, image);
 	cv::waitKey(0);
@@ -259,7 +270,7 @@ void show_image(const cv::Mat& image, const std::string& title)
 }
 
 
-void thread_read_and_rescale(const std::vector<fs::path> subpaths, std::vector<cv::Mat>& im_subset, const cv::Size& subsize, std::mutex& mtx, std::atomic<int>& iter, const int& total)
+void threadReadAndRescale(const std::vector<fs::path> subpaths, std::vector<cv::Mat>& im_subset, const cv::Size& subsize, std::mutex& mtx, std::atomic<int>& iter, const int& total)
 { 
 	int progress = 0;
 	std::vector<cv::Mat> buffer;
@@ -268,18 +279,24 @@ void thread_read_and_rescale(const std::vector<fs::path> subpaths, std::vector<c
 	for (const auto& path : subpaths)
 	{
 		cv::Mat image = cv::imread(path.string(), cv::IMREAD_COLOR);
-		if (image.empty()) continue;
+		if (image.empty()) 
+		{
+			continue;
+		}
 
 		cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA);
 		buffer.push_back(std::move(image));
 		iter += 1;
 		progress = iter;
 		if (progress % 10 == 0 || progress == total)
-			display_progress_bar(progress, total, 100);
+		{
+			displayProgressBar(progress, total, 100);
+		}
+		
 	} 
 
 	{
-		std::lock_guard<std::mutex> guard(mtx);
+		std::scoped_lock<std::mutex> guard(mtx);
 		im_subset.insert(im_subset.end(), std::make_move_iterator(buffer.begin()), std::make_move_iterator(buffer.end()));
 	}
 }
