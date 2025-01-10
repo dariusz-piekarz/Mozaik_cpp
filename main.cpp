@@ -10,8 +10,14 @@
 #include "core.hpp"
 
 
-
-int main()
+/**
+* The main function of the Mozaik project.
+* The project aims to reconstruct an image by replacing each its pixel by other images selected
+* by some strategy, images are additionally filtrated to the pixel color to ensure better overlook.
+* 
+* @return void
+**/
+int main(void)
 {
     clock_t start = std::clock();
     mozaik2();
