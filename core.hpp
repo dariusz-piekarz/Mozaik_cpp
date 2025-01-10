@@ -39,7 +39,7 @@ std::vector<cv::Mat> _readImages(const std::vector<fs::path>& paths, const cv::S
 {
 	std::vector<cv::Mat> images;
 	int iter = 0;
-	const int TOTAL = static_cast<int>(paths.size());
+	auto TOTAL = static_cast<int>(paths.size());
 	for (const auto& path : paths)
 	{
 		cv::Mat image = cv::imread(path.string(), cv::IMREAD_COLOR);
@@ -55,7 +55,6 @@ std::vector<cv::Mat> _readImages(const std::vector<fs::path>& paths, const cv::S
 			displayProgressBar(iter, TOTAL);
 		}
 	}
-	std::cout << std::endl;
 	return images;
 }
 
@@ -78,10 +77,10 @@ std::vector<cv::Mat> _readImages2(const std::vector<fs::path>& paths, const cv::
 {
 	std::vector<cv::Mat> images;
 	std::mutex mtx;
-	std::vector<std::thread> threads;
+	std::vector<std::jthread> threads;
 	
 	const int THREAD_COUNT = 12;
-	const int TOTAL = static_cast<int>(paths.size());
+	auto TOTAL = static_cast<int>(paths.size());
 	std::atomic<int> iter(0);
 
 	std::vector<int> partition;
@@ -97,39 +96,26 @@ std::vector<cv::Mat> _readImages2(const std::vector<fs::path>& paths, const cv::
 		std::vector<fs::path> subrange(paths.begin() + partition[i], paths.begin() + partition[i + 1]);
 		threads.emplace_back(threadReadAndRescale, subrange, std::ref(images), std::ref(subsize), std::ref(mtx), std::ref(iter), std::ref(TOTAL));
 	}
-
-	for (auto& thread : threads) 
-	{
-		if (thread.joinable())
-		{
-			thread.join();
-		}
-	}
-
-	std::cout << std::endl;
-
 	return images;
 }
 
 
 /**
- * Function to read images from a given list of paths and resize them to a specified size using either multithreading approach .
- *
- * @param paths A vector of filesystem paths pointing to the images to be read.
- * @param subsize The target size to which each image should be resized.
- *
- * @return A vector of cv::Mat objects, each representing an image after resizing.
- *
  * This function reads images using multithreading approach from the provided paths, resizes them to the specified subsize,
  * and returns a vector of the resized images. If an image cannot be read or is empty,
  * it is skipped and not included in the returned vector.
  *
  * The function also displays a progress bar to indicate the progress of image reading.
+ * @param paths A vector of filesystem paths pointing to the images to be read.
+ * @param subsize The target size to which each image should be resized.
+ *
+ * @return A vector of cv::Mat objects, each representing an image after resizing.
+ 
  */
 std::vector<cv::Mat> readImages(const std::vector<fs::path>& paths, const cv::Size& subsize)
 {
 	std::vector<cv::Mat> images;
-	const int TOTAL = static_cast<int>(paths.size());
+	auto TOTAL = static_cast<int>(paths.size());
 
 	if (TOTAL > 50)
 	{
@@ -143,15 +129,13 @@ std::vector<cv::Mat> readImages(const std::vector<fs::path>& paths, const cv::Si
 
 
 /**
- * Function to resize the main image.
- *
+ * Function to resize the main image: if proportion of the original image are not preserved,
+ *	then the function ask if proceed, proposing alternative proportions based on user preferences.
+ * 
  * @param image A cv::Mat - the main image as cv Matrix.
  * @param new_size A tuple of ints specifying the target size to which the image should be resized.
  *
  * @return A  cv::Mat object, each representing an image after resizing.
- *
- * Function to resize the main image: if proportion of the original image are not preserved,
- *	then the function ask if proceed, proposing alternative proportions based on user preferences.
  */
 void mainImageResize(cv::Mat& image, std::tuple<int, int> new_size)
 {
@@ -167,8 +151,8 @@ void mainImageResize(cv::Mat& image, std::tuple<int, int> new_size)
 	else
 	{
 		
-		int suggested_new_size_h = static_cast<int>(std::ceil(width / ratio));
-		int suggested_new_size_w = static_cast<int>(std::ceil(height * ratio));
+		auto suggested_new_size_h = static_cast<int>(std::ceil(width / ratio));
+		auto suggested_new_size_w = static_cast<int>(std::ceil(height * ratio));
 		std::cout << "Original proportion is not preserved with the provided new size. " <<
 			"If you want to rescale with preserving proportion press Y / y, otherwise press N / n.\n";
 		
@@ -212,16 +196,7 @@ void mainImageResize(cv::Mat& image, std::tuple<int, int> new_size)
 
 
 /**
- * Function which arranges list of images to a matrix which has the same size as the main picture matrix.
- * Reconstruction take a place with respect to the selected strategy. 
- *
- * @param subimages A std::vector<cv::Mat>& - images which replace pixels of the main image.
- * @param image A cv::Mat - the input image.
- * @param strategy A std::string& - 'pixel_mean', 'pixel_mean_random' or 'duplication' - way of fitting subimages to pixels of the main image.
- * 
- * @return std::vector<std::vector<cv::Mat>> A matrix of cv::Matrices build from the images based on pixels of the main picture and selected strategy
- * 
- * This function take as arguments a list of cv::Mat which are images, to each pixel in the main image cv::Mat there is found a cv::Mat image in the list
+  * This function take as arguments a list of cv::Mat which are images, to each pixel in the main image cv::Mat there is found a cv::Mat image in the list
  * of images based on the 3 strategies:
  * - 'pixel_mean' - there is found a mean pixel to each cv::Mat in the images vector and the image with the closest mean pixel to a pixel in the main cv::Mat is 
  *	 found based on l2 norm,
@@ -229,12 +204,20 @@ void mainImageResize(cv::Mat& image, std::tuple<int, int> new_size)
  *   selection is based on the uniform distribution from the selected population of images with the smallest l2 distances,
  * - 'duplication' - if number of images is smaller than number of pixels in the image, to each row of pixels there are copied cv::Mat images, so that the entire picture
  *   is filled.
+ *
+ * @param subimages A std::vector<cv::Mat>& - images which replace pixels of the main image.
+ * @param image A cv::Mat - the input image.
+ * @param strategy A std::string& - 'pixel_mean', 'pixel_mean_random' or 'duplication' - way of fitting subimages to pixels of the main image.
+ * 
+ * @return std::vector<std::vector<cv::Mat>> A matrix of cv::Matrices build from the images based on pixels of the main picture and selected strategy
+ * 
+
  */
 std::vector<std::vector<cv::Mat>> restructure(std::vector<cv::Mat>& subimages, const cv::Mat& image, const std::string& strategy = "pixel_mean_random")
 {
 	int width = image.cols;
 	int height = image.rows;
-	int subim_len = static_cast<int>(subimages.size());
+	auto subim_len = static_cast<int>(subimages.size());
 
 	std::vector<std::vector<cv::Mat>> ret_image(height, std::vector<cv::Mat>(width));
 
@@ -265,7 +248,7 @@ std::vector<std::vector<cv::Mat>> restructure(std::vector<cv::Mat>& subimages, c
 	else if (strategy == "pixel_mean_random")
 	{
 		const std::vector<cv::Vec3b> MEANS = calculateMeans(subimages);
-		const int RANK = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subim_len) + 2.));
+		auto RANK = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subim_len) + 2.));
 
 		#pragma omp parallel for collapse(2)
 		for (int i = 0; i < height; i++)
@@ -284,6 +267,15 @@ std::vector<std::vector<cv::Mat>> restructure(std::vector<cv::Mat>& subimages, c
 }
 
 
+/**
+ * Function that filter an image at position (i,j) in a matrix of images to a corresponding color given by (i,j) pixel in the image.
+ * The function performs the filtration to each image in the matrix decomposition.
+ *
+ * @param decomposition A const std::vector<std::vector<cv::Mat>>& - matrix of images.
+ * @param image A cv::Mat - the input image.
+ *
+ * @return std::vector<std::vector<cv::Mat>> - A matrix of filtrated images
+ */
 std::vector<std::vector<cv::Mat>> project(const std::vector<std::vector<cv::Mat>>& decomposition, const cv::Mat& image)
 {
 	std::vector<std::vector<cv::Mat>> output(image.rows, std::vector<cv::Mat>(image.cols));
@@ -295,6 +287,16 @@ std::vector<std::vector<cv::Mat>> project(const std::vector<std::vector<cv::Mat>
 }
 
 
+
+/**
+ * Matrix of images is merged to a single images, displayed and saved (if parameters show and save_to have right values).
+ * 
+ * @param decomposition A const std::vector<std::vector<cv::Mat>>&
+ * @param show A bool - decide if the image should be displayed
+ * @param save_to A std::optional<std::string> - string path which saves
+ * 
+ * @return void
+ **/
 void glueImages(const std::vector<std::vector<cv::Mat>>& decomposition, bool show = true, std::optional<std::string> save_to = std::nullopt)
 {
 	cv::Mat merged_image = mergeImages(decomposition);
@@ -310,7 +312,14 @@ void glueImages(const std::vector<std::vector<cv::Mat>>& decomposition, bool sho
 	}
 }
 
-
+/**
+ * Core function of the mozaik app.
+ * It reads the configuration, loads the images, performs the mozaik, and optionally displays and/or saves the result.
+ *
+ * @param config_path A std::string - path to the configuration file
+ *
+ * @return void 
+ **/
 void mozaikCoreApp(std::string config_path)
 {
 	Config config;
@@ -319,12 +328,12 @@ void mozaikCoreApp(std::string config_path)
 
 	if (!fs::exists(config.image_path))
 	{
-		throw std::runtime_error("Error: The main image file does not exist: " + config.image_path);
+		throw fs::filesystem_error("Error: The main image file does not exist: ", config.image_path, std::error_code(std::make_error_code(std::errc::no_such_file_or_directory)));
 	}
 
 	if (!fs::exists(config.filler_images_dir_path))
 	{
-		throw std::runtime_error("Error: The directory where sub images should be stored does not exist: " + config.filler_images_dir_path);
+		throw fs::filesystem_error("Error: The directory where sub images should be stored does not exist: ", config.filler_images_dir_path, std::error_code(std::make_error_code(std::errc::no_such_file_or_directory)));
 	}
 
 	spdlog::info("Collecting paths.");
@@ -352,7 +361,7 @@ void mozaikCoreApp(std::string config_path)
 
 	if (images.empty())
 	{
-		throw std::runtime_error("Set of images is empty.");
+		throw std::out_of_range("Set of images is empty.");
 	}
 
 	spdlog::info("Reading sub images completed in time: " + elapseTime(start1, end1));
@@ -402,7 +411,13 @@ void mozaikCoreApp(std::string config_path)
 	spdlog::info("Program successfully run.");
 }
 
-
+/**
+ * Main function of the mozaik app.
+ * It reads the configuration file and runs the mozaik app.
+ The config file is read from he location of the core.hpp file.
+ *
+ * @return void
+ **/
 void mozaik(void)
 {
 	fs::path cfg_path = fs::path(__FILE__).parent_path();
@@ -411,14 +426,20 @@ void mozaik(void)
 
 	if (!fs::exists(config_path))
 	{
-		throw std::runtime_error("Error: The config file does not exist: " + config_path);
+		throw fs::filesystem_error("Error: The config file does not exist:", config_path, std::error_code(std::make_error_code(std::errc::no_such_file_or_directory)));
 	}
 
 	mozaikCoreApp(config_path);
 }
 
 
-void mozaik2(void)
+/**
+ * Main function of the mozaik app.
+ * It allows user to input the path to the configuration file.
+ *
+ * @return  void
+ **/
+ void mozaik2(void)
 {
 	std::string config_path;
 	std::cout << "Provide a path to the config file:\n";
