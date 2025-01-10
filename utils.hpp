@@ -94,7 +94,7 @@ std::vector<fs::path> allImagePaths(const std::string& dirname)
 void displayProgressBar(int& progress, int total, int bar_width = 100)
 {
 	float percentage = static_cast<float>(progress) / total;
-	int completed = static_cast<int>(percentage * bar_width);
+	auto completed = static_cast<int>(percentage * bar_width);
 
 	std::cout << "\r[";
 
@@ -112,6 +112,10 @@ void displayProgressBar(int& progress, int total, int bar_width = 100)
 
 	std::cout << "] " << static_cast<int>(percentage * 100) << "%";
 	std::cout.flush();
+	if (percentage == 1.0)
+	{
+		std::cout << "" << std::endl;
+	}
 }
 
 
@@ -238,7 +242,7 @@ inline int selectClosestPictRandom(const std::vector<cv::Vec3b>& picures_means_B
 		std::mt19937 gen(rd());
 		std::uniform_int_distribution<int> dis(0, static_cast<int>(closest_indices.size() - 1));
 		return closest_indices[dis(gen)];
-	}
+	} 
 	return -1;
 }
 
