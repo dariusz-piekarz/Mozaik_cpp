@@ -6,10 +6,8 @@
 #include <tuple>
 #include <vector>
 
-
 #include <json/json.h>
 #include <spdlog/spdlog.h>
-
 
 #include <opencv2/opencv.hpp>
 #include <glob.hpp>
@@ -26,7 +24,6 @@ Config parseConfig(const fs::path &config_file_path) {
     Json::Value root;
     reader.parse(file, root);
 
-
     Config config;
 
     config.image_path = root["image_path"].asString();
@@ -37,6 +34,7 @@ Config parseConfig(const fs::path &config_file_path) {
     config.filtration = root["filtration"].asBool();
     config.show = root["show"].asBool();
     config.output_image_path = root["output_image_path"].asString();
+
     return config;
 }
 

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <filesystem>
+#include <optional>
 
 #include <spdlog/spdlog.h>
 
