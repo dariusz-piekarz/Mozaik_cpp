@@ -3,6 +3,8 @@
 #include <iostream>
 #include <mutex>
 #include <thread>
+#include <optional>
+#include <source_location>
 
 #include <spdlog/spdlog.h>
 
@@ -10,6 +12,7 @@
 
 #include "utils.hpp"
 #include "core.hpp"
+#include "exceptions.hpp"
 
 
 namespace fs = std::filesystem;
@@ -76,7 +79,7 @@ void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size) {
     const int height = std::get<1>(new_size);
     const double ratio = static_cast<double>(width) / static_cast<double>(height);
 
-    if (ratio == static_cast<double>(image.cols) / static_cast<double>(image.rows)) {
+    if (static_cast<double>(image.cols) / static_cast<double>(image.rows) == ratio) {
         cv::resize(image, image, cv::Size(width, height), 0, 0, cv::INTER_AREA);
     } else {
         const auto suggested_new_size_h = static_cast<int>(std::ceil(width / ratio));
@@ -206,7 +209,7 @@ void mozaikCoreApp(const fs::path &config_path) {
     clock_t end0 = std::clock();
 
     if (images_paths.empty()) {
-        throw std::runtime_error(
+        throw ExtensionError(
             "The path: " + config.filler_images_dir_path +
             ", contains no images with extensions [jpg, JPG, JPEG, jpeg, png, PNG].");
     }
@@ -259,10 +262,10 @@ void mozaikCoreApp(const fs::path &config_path) {
 
     spdlog::info("Combining pictures started.");
 
-    std::optional<std::string> save_to = config.output_image_path.empty()
-                                             ? std::optional{config.output_image_path}
-                                             : std::nullopt;
+    std::optional<std::string> save_to =  config.output_image_path.empty() ? std::nullopt : std::optional{config.output_image_path};
+
     clock_t start4 = std::clock();
+
     if (config.filtration) {
         glueImages(matrix_images_f, config.show, save_to);
     } else {
@@ -276,7 +279,8 @@ void mozaikCoreApp(const fs::path &config_path) {
 
 
 void mozaik() {
-    const fs::path cfg_path = fs::path(__FILE__).parent_path();
+    std::source_location sl = std::source_location::current();
+    const fs::path cfg_path = fs::path(sl.file_name()).parent_path();
     const fs::path config_path = cfg_path.string() + "\\config.json";
 
 
