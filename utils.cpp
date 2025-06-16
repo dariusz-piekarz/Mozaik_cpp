@@ -5,6 +5,7 @@
 #include <random>
 #include <tuple>
 #include <vector>
+#include <ranges>
 
 #include <json/json.h>
 #include <spdlog/spdlog.h>
@@ -175,7 +176,7 @@ inline int selectClosestPictRandom(const std::vector<cv::Vec3b> &pictures_means_
         dists.insert(dists.end(), local_dists.begin(), local_dists.end());
     }
 
-    std::sort(dists.begin(), dists.end());
+    std::ranges::sort(dists);
 
     std::vector<int> closest_indices;
     for (int i = 0; i < std::min(rank, static_cast<int>(dists.size())); ++i) {
