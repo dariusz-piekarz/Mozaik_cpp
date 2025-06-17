@@ -50,7 +50,7 @@ std::vector<fs::path> allImagePaths(const std::string &dirname) {
     std::vector<fs::path> all_paths;
 
     for (const auto &ext: {".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG"}) {
-        auto temp_paths = findPaths(dirname, ext);
+        decltype(auto) temp_paths = findPaths(dirname, ext);
 
         if (!temp_paths.empty()) {
             all_paths.insert(all_paths.end(), temp_paths.begin(), temp_paths.end());

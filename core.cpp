@@ -45,7 +45,7 @@ std::vector<cv::Mat> _readImages2(const std::vector<fs::path> &paths, const cv::
     std::vector<std::jthread> threads;
 
     constexpr int THREAD_COUNT = 12;
-    auto TOTAL = static_cast<int>(paths.size());
+   decltype(auto) TOTAL = static_cast<int>(paths.size());
     std::atomic iter(0);
 
     std::vector<int> partition;
