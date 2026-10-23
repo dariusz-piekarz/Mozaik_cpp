@@ -1,10 +1,13 @@
 #include <algorithm>
 #include <atomic>
+#include <array>
 #include <cctype>
 #include <ctime>
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <stdexcept>
+#include <string_view>
 #include <tuple>
 #include <vector>
 #include <ranges>
@@ -22,20 +25,86 @@ namespace fs = std::filesystem;
 
 Config parseConfig(const fs::path &config_file_path) {
     std::ifstream file(config_file_path);
-    Json::Reader reader;
+    if (!file) {
+        throw std::runtime_error("Cannot open config file: " + config_file_path.string());
+    }
+
+    Json::CharReaderBuilder reader;
+    reader["allowComments"] = false;
+    reader["allowTrailingCommas"] = false;
+    reader["rejectDupKeys"] = true;
+    reader["failIfExtra"] = true;
     Json::Value root;
-    reader.parse(file, root);
+    std::string parse_errors;
+    if (!Json::parseFromStream(reader, file, &root, &parse_errors)) {
+        throw std::invalid_argument("Invalid JSON in config file '" + config_file_path.string() +
+                                    "': " + parse_errors);
+    }
+    if (!root.isObject()) {
+        throw std::invalid_argument("Config must contain a JSON object: " + config_file_path.string());
+    }
+
+    constexpr std::array<std::string_view, 8> allowed_fields = {
+        "image_path", "filler_images_dir_path", "image_size", "sub_images_size",
+        "strategy", "filtration", "show", "output_image_path"
+    };
+    for (const auto &name : root.getMemberNames()) {
+        if (std::find(allowed_fields.begin(), allowed_fields.end(), std::string_view(name)) ==
+            allowed_fields.end()) {
+            throw std::invalid_argument("Unknown config field: " + name);
+        }
+    }
+
+    const auto require_string = [&root](const char *name, bool allow_empty = false) {
+        const Json::Value &value = root[name];
+        if (!value.isString() || (!allow_empty && value.asString().empty())) {
+            throw std::invalid_argument(std::string("Config field '") + name +
+                                        (allow_empty ? "' must be a string" :
+                                                       "' must be a nonempty string"));
+        }
+        return value.asString();
+    };
+    const auto require_size = [&root](const char *name) {
+        const Json::Value &value = root[name];
+        if (!value.isArray() || value.size() != 2 || !value[0].isInt() || !value[1].isInt() ||
+            value[0].asInt() <= 0 || value[1].asInt() <= 0) {
+            throw std::invalid_argument(std::string("Config field '") + name +
+                                        "' must contain two positive integer dimensions");
+        }
+        return std::make_tuple(value[0].asInt(), value[1].asInt());
+    };
+    const auto require_bool = [&root](const char *name) {
+        const Json::Value &value = root[name];
+        if (!value.isBool()) {
+            throw std::invalid_argument(std::string("Config field '") + name + "' must be a boolean");
+        }
+        return value.asBool();
+    };
+
+    const fs::path config_dir = fs::absolute(config_file_path).parent_path();
+    const auto resolve_path = [&config_dir](const std::string &value) {
+        fs::path path(value);
+        if (path.is_relative()) {
+            path = config_dir / path;
+        }
+        return path.lexically_normal().string();
+    };
 
     Config config;
 
-    config.image_path = root["image_path"].asString();
-    config.filler_images_dir_path = root["filler_images_dir_path"].asString();
-    config.image_size = std::make_tuple(root["image_size"][0].asInt(), root["image_size"][1].asInt());
-    config.sub_images_size = std::make_tuple(root["sub_images_size"][0].asInt(), root["sub_images_size"][1].asInt());
-    config.strategy = root["strategy"].asString();
-    config.filtration = root["filtration"].asBool();
-    config.show = root["show"].asBool();
-    config.output_image_path = root["output_image_path"].asString();
+    config.image_path = resolve_path(require_string("image_path"));
+    config.filler_images_dir_path = resolve_path(require_string("filler_images_dir_path"));
+    config.image_size = require_size("image_size");
+    config.sub_images_size = require_size("sub_images_size");
+    config.strategy = require_string("strategy");
+    if (config.strategy != "duplication" && config.strategy != "pixel_mean" &&
+        config.strategy != "pixel_mean_random") {
+        throw std::invalid_argument("Unsupported config strategy: " + config.strategy);
+    }
+    config.filtration = require_bool("filtration");
+    config.show = require_bool("show");
+    const std::string output_path = require_string("output_image_path", true);
+    config.output_image_path = output_path.empty() ? "" : resolve_path(output_path);
 
     return config;
 }

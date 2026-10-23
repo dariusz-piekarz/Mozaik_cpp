@@ -9,6 +9,7 @@
 #include <thread>
 #include <optional>
 #include <source_location>
+#include <stdexcept>
 #include <utility>
 
 #include <spdlog/spdlog.h>
@@ -110,23 +111,30 @@ void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size) {
         std::cout << "Original proportion is not preserved with the provided new size. " <<
                 "If you want to rescale with preserving proportion press Y / y, otherwise press N / n.\n";
 
-        std::string decision;
-        std::cin >> decision;
+        const auto read_decision = []() {
+            std::string value;
+            if (!(std::cin >> value)) {
+                throw std::runtime_error("Input ended while selecting image resize options.");
+            }
+            return value;
+        };
+
+        std::string decision = read_decision();
 
         while (decision != "Y" && decision != "y" && decision != "N" && decision != "n") {
             std::cout <<
                     "Invalid input. Please press Y/y to rescale with preserving proportion or N/n to continue without preserving proportion.\n";
-            std::cin >> decision;
+            decision = read_decision();
         }
 
         if (decision == "Y" || decision == "y") {
             std::cout << "Proposed are two solutions: keep width and adjust height or keep height and adjust width." <<
                     " To select the first strategy press W/w, to select the second press H/h\n";
-            std::cin >> decision;
+            decision = read_decision();
 
             while (decision != "W" && decision != "w" && decision != "H" && decision != "h") {
                 std::cout << "Invalid input. Please press W/w to keep width or H/h to keep height.\n";
-                std::cin >> decision;
+                decision = read_decision();
             }
 
             if (decision == "W" || decision == "w") {
@@ -204,7 +212,14 @@ void glueImages(const std::vector<std::vector<cv::Mat> > &decomposition,
     }
 
     if (save_to.has_value()) {
-        cv::imwrite(save_to.value(), merged_image);
+        try {
+            if (!cv::imwrite(save_to.value(), merged_image)) {
+                throw std::runtime_error("Failed to save output image: " + save_to.value());
+            }
+        } catch (const cv::Exception &error) {
+            throw std::runtime_error("Failed to save output image '" + save_to.value() +
+                                     "': " + error.what());
+        }
     }
 }
 
@@ -240,7 +255,16 @@ void mozaikCoreApp(const fs::path &config_path) {
     spdlog::info("Collecting paths completed in time: " + elapseTime(start0, end0));
     spdlog::info("Reading main image started.");
 
-    cv::Mat image = cv::imread(config.image_path, cv::IMREAD_COLOR);
+    cv::Mat image;
+    try {
+        image = cv::imread(config.image_path, cv::IMREAD_COLOR);
+    } catch (const cv::Exception &error) {
+        throw std::runtime_error("Cannot read main image '" + config.image_path +
+                                 "': " + error.what());
+    }
+    if (image.empty()) {
+        throw std::runtime_error("Cannot read main image: " + config.image_path);
+    }
 
     spdlog::info("Reading main image completed.");
     spdlog::info("Reading sub images started.");
@@ -316,14 +340,16 @@ void mozaik() {
 }
 
 void mozaik2() {
-    fs::path config_path;
-    std::cout << "Provide a path to the config file:\n";
-    std::cin >> config_path;
-
-    while (!fs::exists(config_path)) {
-        std::cout << "Provide a valid path to the config file:\n";
-        std::cin >> config_path;
+    std::string config_path;
+    while (true) {
+        std::cout << "Provide a path to the config file:\n";
+        if (!std::getline(std::cin, config_path)) {
+            throw std::runtime_error("Input ended before a config path was provided.");
+        }
+        if (fs::is_regular_file(config_path)) {
+            mozaikCoreApp(config_path);
+            return;
+        }
+        std::cout << "Provide a valid path to the config file.\n";
     }
-
-    mozaikCoreApp(config_path);
 }
