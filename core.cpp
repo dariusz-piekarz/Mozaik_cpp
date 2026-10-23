@@ -215,6 +215,60 @@ std::vector<std::vector<cv::Mat> > project(const std::vector<std::vector<cv::Mat
 }
 
 
+cv::Mat renderMosaic(const std::vector<cv::Mat> &subimages, const cv::Mat &image,
+                     const std::string_view &strategy, bool filtration) {
+    if (image.empty() || image.type() != CV_8UC3 || subimages.empty()) {
+        throw std::invalid_argument("A color source image and at least one tile are required.");
+    }
+    const cv::Size tile_size = subimages.front().size();
+    if (tile_size.width <= 0 || tile_size.height <= 0) {
+        throw std::invalid_argument("Tiles must have positive dimensions.");
+    }
+    for (const auto &tile : subimages) {
+        if (tile.size() != tile_size || tile.type() != CV_8UC3) {
+            throw std::invalid_argument("All tiles must be color images of the same size.");
+        }
+    }
+    if (strategy != "duplication" && strategy != "pixel_mean" && strategy != "pixel_mean_random") {
+        throw std::invalid_argument("Unsupported strategy!");
+    }
+
+    const auto output_width = static_cast<std::int64_t>(image.cols) * tile_size.width;
+    const auto output_height = static_cast<std::int64_t>(image.rows) * tile_size.height;
+    if (output_width > std::numeric_limits<int>::max() ||
+        output_height > std::numeric_limits<int>::max()) {
+        throw std::overflow_error("Mosaic dimensions exceed OpenCV's supported range.");
+    }
+    cv::Mat output(static_cast<int>(output_height), static_cast<int>(output_width), CV_8UC3);
+
+    const auto means = strategy == "duplication" ? std::vector<cv::Vec3b>{} : calculateMeans(subimages);
+    const auto rank = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subimages.size()) + 2.));
+    for (int row = 0; row < image.rows; ++row) {
+        for (int col = 0; col < image.cols; ++col) {
+            const auto color = image.at<cv::Vec3b>(row, col);
+            std::size_t index;
+            if (strategy == "duplication") {
+                index = (static_cast<std::size_t>(row) * image.cols + col) % subimages.size();
+            } else if (strategy == "pixel_mean") {
+                index = static_cast<std::size_t>(closestImage(means, color));
+            } else {
+                index = static_cast<std::size_t>(selectClosestPictRandom(means, color, rank));
+            }
+
+            const cv::Rect target(col * tile_size.width, row * tile_size.height,
+                                  tile_size.width, tile_size.height);
+            cv::Mat destination = output(target);
+            if (filtration) {
+                projectImageToColor(subimages[index], color).copyTo(destination);
+            } else {
+                subimages[index].copyTo(destination);
+            }
+        }
+    }
+    return output;
+}
+
+
 void glueImages(const std::vector<std::vector<cv::Mat> > &decomposition,
                 const bool &show,
                 const std::optional<std::string> &save_to) {
@@ -298,42 +352,19 @@ void mozaikCoreApp(const fs::path &config_path) {
     mainImageResize(image, config.image_size);
 
     spdlog::info("Rescaling main image completed.");
-    spdlog::info("Reordering of sub images started.");
+    spdlog::info("Rendering mosaic started.");
     clock_t start2 = std::clock();
 
-    std::vector<std::vector<cv::Mat> > matrix_images = restructure(images, image, config.strategy);
+    const cv::Mat result = renderMosaic(images, image, config.strategy, config.filtration);
     clock_t end2 = std::clock();
 
-    spdlog::info("Reordering of sub images completed in time: " + elapseTime(start2, end2));
-
-    std::vector<std::vector<cv::Mat> > matrix_images_f;
-
-    if (config.filtration) {
-        spdlog::info("Filtration of sub images to main picture pixels started.");
-        clock_t start3 = std::clock();
-
-        matrix_images_f = project(matrix_images, image);
-        clock_t end3 = std::clock();
-
-        freeMemory(matrix_images);
-
-        spdlog::info("Filtration of sub images to main picture pixels completed in time: " + elapseTime(start3, end3));
+    spdlog::info("Rendering mosaic completed in time: " + elapseTime(start2, end2));
+    if (config.show) {
+        showImage(result, "Merged image");
     }
-
-    spdlog::info("Combining pictures started.");
-
-    std::optional<std::string> save_to =  config.output_image_path.empty() ? std::nullopt : std::optional{config.output_image_path};
-
-    clock_t start4 = std::clock();
-
-    if (config.filtration) {
-        glueImages(matrix_images_f, config.show, save_to);
-    } else {
-        glueImages(matrix_images, config.show, save_to);
+    if (!config.output_image_path.empty() && !cv::imwrite(config.output_image_path, result)) {
+        throw std::runtime_error("Failed to save output image: " + config.output_image_path);
     }
-    clock_t end4 = std::clock();
-
-    spdlog::info("Combining pictures completed in time: " + elapseTime(start4, end4));
     spdlog::info("Program successfully run.");
 }
 

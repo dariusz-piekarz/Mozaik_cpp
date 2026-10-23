@@ -4,6 +4,7 @@
 #include <vector>
 #include <filesystem>
 #include <optional>
+#include <string_view>
 
 #include <spdlog/spdlog.h>
 
@@ -107,6 +108,10 @@ extern std::vector<std::vector<cv::Mat> > restructure(const std::vector<cv::Mat>
  */
 extern std::vector<std::vector<cv::Mat> > project(const std::vector<std::vector<cv::Mat> > &decomposition,
                                                   const cv::Mat &image);
+
+/** Build the mosaic directly in its output image, without retaining a grid of tiles. */
+cv::Mat renderMosaic(const std::vector<cv::Mat> &subimages, const cv::Mat &image,
+                     const std::string_view &strategy, bool filtration);
 
 
 /**
