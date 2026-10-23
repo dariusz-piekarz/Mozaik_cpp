@@ -2,9 +2,11 @@
 #include <atomic>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <mutex>
 #include <thread>
 #include <optional>
@@ -101,13 +103,22 @@ std::vector<cv::Mat> readImages(const std::vector<fs::path> &paths, const cv::Si
 void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size) {
     const int width = std::get<0>(new_size);
     const int height = std::get<1>(new_size);
-    const double ratio = static_cast<double>(width) / static_cast<double>(height);
+    if (image.empty() || width <= 0 || height <= 0) {
+        throw std::invalid_argument("Image and requested dimensions must be nonempty and positive.");
+    }
 
-    if (static_cast<double>(image.cols) / static_cast<double>(image.rows) == ratio) {
+    const auto proportionalSize = [](int fixed_size, int original_other, int original_fixed) -> int {
+        const auto numerator = static_cast<std::int64_t>(fixed_size) * original_other;
+        const auto rounded = (numerator + original_fixed / 2) / original_fixed;
+        if (rounded > std::numeric_limits<int>::max()) {
+            throw std::overflow_error("Proportional image dimension exceeds the supported range.");
+        }
+        return static_cast<int>(rounded > 0 ? rounded : 1);
+    };
+
+    if (static_cast<std::int64_t>(image.cols) * height == static_cast<std::int64_t>(image.rows) * width) {
         cv::resize(image, image, cv::Size(width, height), 0, 0, cv::INTER_AREA);
     } else {
-        const auto suggested_new_size_h = static_cast<int>(std::ceil(width / ratio));
-        const auto suggested_new_size_w = static_cast<int>(std::ceil(height * ratio));
         std::cout << "Original proportion is not preserved with the provided new size. " <<
                 "If you want to rescale with preserving proportion press Y / y, otherwise press N / n.\n";
 
@@ -138,9 +149,11 @@ void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size) {
             }
 
             if (decision == "W" || decision == "w") {
-                cv::resize(image, image, cv::Size(width, suggested_new_size_h), 0, 0, cv::INTER_AREA);
+                const int suggested_height = proportionalSize(width, image.rows, image.cols);
+                cv::resize(image, image, cv::Size(width, suggested_height), 0, 0, cv::INTER_AREA);
             } else if (decision == "H" || decision == "h") {
-                cv::resize(image, image, cv::Size(suggested_new_size_w, height), 0, 0, cv::INTER_AREA);
+                const int suggested_width = proportionalSize(height, image.cols, image.rows);
+                cv::resize(image, image, cv::Size(suggested_width, height), 0, 0, cv::INTER_AREA);
             }
         } else {
             cv::resize(image, image, cv::Size(width, height), 0, 0, cv::INTER_AREA);
