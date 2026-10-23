@@ -9,8 +9,8 @@
 #include <stdexcept>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
-#include <ranges>
 
 #include <json/json.h>
 #include <spdlog/spdlog.h>
@@ -255,35 +255,38 @@ int closestImage(const std::vector<cv::Vec3b> &means, const cv::Vec3b &color_BGR
 int selectClosestPictRandom(const std::vector<cv::Vec3b> &pictures_means_BGR,
                                    const cv::Vec3b &color_BGR,
                                    const int rank = 30) {
-    std::vector<std::pair<double, int> > dists;
+    if (rank <= 0 || pictures_means_BGR.empty()) {
+        return -1;
+    }
 
-#pragma omp parallel
-    {
-        std::vector<std::pair<double, int> > local_dists;
+    using Candidate = std::pair<int, int>; // Squared distance and original index.
+    const auto candidate_count = std::min(static_cast<std::size_t>(rank), pictures_means_BGR.size());
+    // Keep the worst of the selected candidates at the front of the max heap.
+    thread_local std::vector<Candidate> nearest;
+    nearest.clear();
+    nearest.reserve(candidate_count);
 
-#pragma omp for nowait
-        for (int i = 0; i < pictures_means_BGR.size(); i++) {
-            double distance = l2Norm(pictures_means_BGR[i], color_BGR);
-            local_dists.emplace_back(distance, i);
+    for (std::size_t i = 0; i < pictures_means_BGR.size(); ++i) {
+        int squared_distance = 0;
+        for (int channel = 0; channel < 3; ++channel) {
+            const int difference = static_cast<int>(pictures_means_BGR[i][channel]) - color_BGR[channel];
+            squared_distance += difference * difference;
         }
-#pragma omp critical
-        dists.insert(dists.end(), local_dists.begin(), local_dists.end());
+
+        const Candidate candidate(squared_distance, static_cast<int>(i));
+        if (nearest.size() < candidate_count) {
+            nearest.push_back(candidate);
+            std::push_heap(nearest.begin(), nearest.end());
+        } else if (candidate < nearest.front()) {
+            std::pop_heap(nearest.begin(), nearest.end());
+            nearest.back() = candidate;
+            std::push_heap(nearest.begin(), nearest.end());
+        }
     }
 
-    std::ranges::sort(dists);
-
-    std::vector<int> closest_indices;
-    for (int i = 0; i < std::min(rank, static_cast<int>(dists.size())); ++i) {
-        closest_indices.push_back(dists[i].second);
-    }
-
-    if (!closest_indices.empty()) {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution dis(0, static_cast<int>(closest_indices.size() - 1));
-        return closest_indices[dis(gen)];
-    }
-    return -1;
+    thread_local std::mt19937 generator(std::random_device{}());
+    std::uniform_int_distribution<std::size_t> distribution(0, nearest.size() - 1);
+    return nearest[distribution(generator)].second;
 };
 
 
