@@ -248,20 +248,18 @@ void threadReadAndRescale(const std::vector<fs::path> &subpaths,
                           std::mutex &mtx,
                           std::atomic<int> &iter,
                           const int &total) {
-    int progress = 0;
     std::vector<cv::Mat> buffer;
     buffer.reserve(subpaths.size());
 
     for (const auto &path: subpaths) {
         cv::Mat image = cv::imread(path.string(), cv::IMREAD_COLOR);
-        if (image.empty()) {
-            continue;
+        if (!image.empty()) {
+            cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA);
+            buffer.push_back(std::move(image));
         }
 
-        cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA);
-        buffer.push_back(std::move(image));
-        iter += 1;
-        progress = iter;
+        std::scoped_lock guard(mtx);
+        const int progress = ++iter;
         if (progress % 10 == 0 || progress == total) {
             displayProgressBar(progress, total, 100);
         }

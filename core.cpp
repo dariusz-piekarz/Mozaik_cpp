@@ -1,10 +1,15 @@
+#include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstddef>
+#include <exception>
 #include <iostream>
+#include <iterator>
 #include <mutex>
 #include <thread>
 #include <optional>
 #include <source_location>
+#include <utility>
 
 #include <spdlog/spdlog.h>
 
@@ -24,10 +29,10 @@ std::vector<cv::Mat> _readImages(const std::vector<fs::path> &paths, const cv::S
     const auto TOTAL = static_cast<int>(paths.size());
     for (const auto &path: paths) {
         cv::Mat image = cv::imread(path.string(), cv::IMREAD_COLOR);
-        if (image.empty()) continue;
-
-        cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA);
-        images.push_back(image);
+        if (!image.empty()) {
+            cv::resize(image, image, subsize, 0, 0, cv::INTER_AREA);
+            images.push_back(std::move(image));
+        }
 
         iter++;
 
@@ -40,33 +45,51 @@ std::vector<cv::Mat> _readImages(const std::vector<fs::path> &paths, const cv::S
 
 
 std::vector<cv::Mat> _readImages2(const std::vector<fs::path> &paths, const cv::Size &subsize) {
-    std::vector<cv::Mat> images;
-    std::mutex mtx;
-    std::vector<std::jthread> threads;
-
-    constexpr int THREAD_COUNT = 12;
-   decltype(auto) TOTAL = static_cast<int>(paths.size());
-    std::atomic iter(0);
-
-    std::vector<int> partition;
-    partition.reserve(THREAD_COUNT + 1);
-
-    for (int i = 0; i <= THREAD_COUNT; i++) {
-        partition.push_back(static_cast<int>(std::floor(TOTAL * i / THREAD_COUNT)));
+    if (paths.empty()) {
+        return {};
     }
 
-    for (int i = 0; i < THREAD_COUNT; i++) {
-        std::vector subrange(paths.begin() + partition[i], paths.begin() + partition[i + 1]);
-        threads.emplace_back(threadReadAndRescale, subrange, std::ref(images), std::ref(subsize), std::ref(mtx),
-                             std::ref(iter), std::ref(TOTAL));
+    const std::size_t thread_count = std::min<std::size_t>(12, paths.size());
+    const int total = static_cast<int>(paths.size());
+    std::atomic<int> iter(0);
+    std::mutex mtx;
+    std::vector<std::vector<cv::Mat>> batches(thread_count);
+    std::vector<std::exception_ptr> failures(thread_count);
+    std::vector<std::jthread> threads;
+    threads.reserve(thread_count);
+
+    for (std::size_t i = 0; i < thread_count; ++i) {
+        const auto begin = paths.begin() + static_cast<std::ptrdiff_t>(paths.size() * i / thread_count);
+        const auto end = paths.begin() + static_cast<std::ptrdiff_t>(paths.size() * (i + 1) / thread_count);
+        std::vector<fs::path> subrange(begin, end);
+        threads.emplace_back([&, i, subrange = std::move(subrange)] {
+            try {
+                threadReadAndRescale(subrange, batches[i], subsize, mtx, iter, total);
+            } catch (...) {
+                failures[i] = std::current_exception();
+            }
+        });
+    }
+
+    for (auto &thread: threads) {
+        thread.join();
+    }
+    for (const auto &failure: failures) {
+        if (failure) {
+            std::rethrow_exception(failure);
+        }
+    }
+
+    std::vector<cv::Mat> images;
+    images.reserve(paths.size());
+    for (auto &batch: batches) {
+        images.insert(images.end(), std::make_move_iterator(batch.begin()), std::make_move_iterator(batch.end()));
     }
     return images;
 }
 
 
 std::vector<cv::Mat> readImages(const std::vector<fs::path> &paths, const cv::Size &subsize) {
-    std::vector<cv::Mat> images;
-
     if (static_cast<int>(paths.size()) > 50) {
         return _readImages2(paths, subsize);
     }

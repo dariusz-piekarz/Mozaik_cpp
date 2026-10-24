@@ -33,4 +33,7 @@ if(BUILD_TESTING)
     target_link_libraries(image_paths_test PRIVATE mozaik_core)
     add_test(NAME image_paths_test COMMAND image_paths_test)
 
+    add_executable(loader_order_test tests/loader_order_test.cpp)
+    target_link_libraries(loader_order_test PRIVATE mozaik_core)
+    add_test(NAME loader_order_test COMMAND loader_order_test)
 endif()
