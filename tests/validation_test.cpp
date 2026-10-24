@@ -165,6 +165,21 @@ void test_failed_output_save() {
     expect_error([&] { glueImages(tiles, false, output); }, "Failed to save output image");
 }
 
+void test_failed_active_output_save() {
+    TemporaryDirectory temp;
+    const cv::Mat image(2, 2, CV_8UC3, cv::Scalar(1, 2, 3));
+    require(cv::imwrite((temp.path() / "main.png").string(), image),
+            "Could not create main image fixture");
+    fs::create_directory(temp.path() / "tiles");
+    require(cv::imwrite((temp.path() / "tiles" / "tile.png").string(), image),
+            "Could not create tile fixture");
+    const auto json = replace_once(std::string(valid_json),
+                                   "\"output_image_path\": \"result.png\"",
+                                   "\"output_image_path\": \"missing directory/result.png\"");
+    const fs::path config_path = temp.write("config.json", json);
+    expect_error([&] { mozaikCoreApp(config_path); }, "Failed to save output image");
+}
+
 void test_interactive_path_with_spaces() {
     TemporaryDirectory temp;
     const fs::path config_path = temp.write("invalid config.json", R"({"image_path": )");
@@ -197,6 +212,7 @@ int main() {
     run("relative paths and spaces", test_relative_paths_and_spaces, failures);
     run("unreadable main image", test_unreadable_main_image, failures);
     run("failed output save", test_failed_output_save, failures);
+    run("failed active output save", test_failed_active_output_save, failures);
     run("interactive path with spaces", test_interactive_path_with_spaces, failures);
     run("interactive EOF", test_interactive_eof, failures);
     return failures == 0 ? 0 : 1;

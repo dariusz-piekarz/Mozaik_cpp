@@ -58,7 +58,7 @@ cmake --build --preset windows-llvm-mingw
 ctest --test-dir .\build\windows-llvm-mingw --output-on-failure
 ```
 
-`CMakeLists.txt` rejestruje w CTest `image_paths_test`, `loader_order_test`, `validation_test`, `aspect_ratio_test` i `random_selection_test`. Pozostałe pliki w `tests/` nie oznaczają jeszcze, że uruchamia je `ctest`.
+`CMakeLists.txt` rejestruje w CTest siedem testów: `image_paths_test`, `loader_order_test`, `validation_test`, `aspect_ratio_test`, `random_selection_test`, `mosaic_render_test` i `validation_resize_test`.
 
 ## 3. Przykład uruchomienia i dane
 
@@ -74,7 +74,6 @@ Bez argumentu program zapyta o ścieżkę konfiguracji. Wpisanie jej jako całej
 Przykład ma siatkę `4 × 4` kafelków po `8 × 8` pikseli, więc wynik ma `32 × 32` piksele. `show` jest wyłączone; program nie otwiera okna podglądu.
 
 Pliki wejściowe są dołączone do repozytorium: `examples/input.png` oraz `examples/tiles/{blue,green,red,yellow}.png`. Uruchomienie przykładu nie pobiera obrazów z sieci. Historia pochodzenia tych pięciu PNG, sposób ich wytworzenia i ich osobna licencja nie są zapisane w repozytorium. `examples/output.png` jest wynikiem programu i jest ignorowany przez Git.
-
 
 ## 4. Stan sprawdzony lokalnie
 
@@ -112,3 +111,27 @@ ctest --test-dir build/local -R '^random_selection_test$' --output-on-failure
 ```
 
 Oba polecenia zakończyły się kodem 0, a test wynikiem `1/1 Passed`. Sprawdza wybór tylko z najbliższych kandydatów, remisy, puste wejście, niepoprawny i nadmierny `rank` oraz ponowne użycie bufora.
+
+Po zmianie renderowania wykonano `cmake --build build/local --target Mozaik mosaic_render_test validation_test`, `ctest --test-dir build/local --output-on-failure` oraz `build\local\Mozaik.exe examples\config.json` z katalogu repozytorium. Kompilacja i program zakończyły się kodem 0, a CTest pokazał `6/6 Passed`; program ponownie wygenerował `examples/output.png`. Test renderowania sprawdza rozmiar, układ kafelków, dobór według średniego koloru, filtrowanie i strategię losową z jednym kafelkiem. Nowy sposób filtrowania porównano piksel po pikselu z dotychczasową regułą dla kafelka o zróżnicowanych kolorach.
+
+Dodatkowo dołączono `validation_resize_test`, który sprawdza zakończenie interaktywnych pytań po EOF. Polecenia `cmake --build build/local --target validation_resize_test` i `ctest --test-dir build/local -R '^validation_resize_test$' --output-on-failure` zakończyły się kodem 0, a test wynikiem `1/1 Passed`. Ponowne uruchomienie pełnego `ctest --test-dir build/local --output-on-failure` po dołączeniu testu pokazało `7/7 Passed`.
+
+## 5. Jak zachować zasady dokumentowania w innych projektach
+
+W tym środowisku utworzono `C:\Users\DXD\.codex\AGENTS.md` z regułą prowadzenia `manual.md` i `mods.md` w każdym projekcie. Kopia w tym repozytorium to `AGENTS.md`. Zgodnie z [instrukcją Codex](https://learn.chatgpt.com/docs/agent-configuration/agents-md) plik w katalogu domowym Codex jest globalny, a plik w repozytorium działa lokalnie; Codex odczytuje je przy rozpoczęciu nowej sesji. Lokalizację domową można zmienić przez `CODEX_HOME`.
+
+Na innym komputerze skopiuj regułę z tego repozytorium do katalogu domowego Codex. Gdy docelowy plik już istnieje, otwórz go i dopisz regułę ręcznie, aby nie zastąpić innych preferencji:
+
+```powershell
+$codexHomeDir = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $env:USERPROFILE '.codex' }
+New-Item -ItemType Directory -Force -Path $codexHomeDir | Out-Null
+$globalRules = Join-Path $codexHomeDir 'AGENTS.md'
+if (Test-Path -LiteralPath $globalRules) {
+    notepad $globalRules
+} else {
+    Copy-Item -LiteralPath .\AGENTS.md -Destination $globalRules
+}
+Get-Content -LiteralPath $globalRules -Encoding utf8
+```
+
+W bieżącej sesji potwierdzono utworzenie i treść pliku globalnego oraz kopii w repozytorium. Nie uruchamiano osobnej nowej sesji Codex do sprawdzenia automatycznego odczytu reguły.

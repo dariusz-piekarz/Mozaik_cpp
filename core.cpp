@@ -259,7 +259,19 @@ cv::Mat renderMosaic(const std::vector<cv::Mat> &subimages, const cv::Mat &image
                                   tile_size.width, tile_size.height);
             cv::Mat destination = output(target);
             if (filtration) {
-                projectImageToColor(subimages[index], color).copyTo(destination);
+                const double scale[] = {
+                    color[0] / 255.0, color[1] / 255.0, color[2] / 255.0
+                };
+                for (int tile_row = 0; tile_row < tile_size.height; ++tile_row) {
+                    const auto *source_pixels = subimages[index].ptr<cv::Vec3b>(tile_row);
+                    auto *destination_pixels = destination.ptr<cv::Vec3b>(tile_row);
+                    for (int tile_col = 0; tile_col < tile_size.width; ++tile_col) {
+                        for (int channel = 0; channel < 3; ++channel) {
+                            destination_pixels[tile_col][channel] = cv::saturate_cast<uchar>(
+                                source_pixels[tile_col][channel] * scale[channel]);
+                        }
+                    }
+                }
             } else {
                 subimages[index].copyTo(destination);
             }
@@ -362,8 +374,15 @@ void mozaikCoreApp(const fs::path &config_path) {
     if (config.show) {
         showImage(result, "Merged image");
     }
-    if (!config.output_image_path.empty() && !cv::imwrite(config.output_image_path, result)) {
-        throw std::runtime_error("Failed to save output image: " + config.output_image_path);
+    if (!config.output_image_path.empty()) {
+        try {
+            if (!cv::imwrite(config.output_image_path, result)) {
+                throw std::runtime_error("Failed to save output image: " + config.output_image_path);
+            }
+        } catch (const cv::Exception &error) {
+            throw std::runtime_error("Failed to save output image '" + config.output_image_path +
+                                     "': " + error.what());
+        }
     }
     spdlog::info("Program successfully run.");
 }

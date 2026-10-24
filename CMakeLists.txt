@@ -48,4 +48,12 @@ if(BUILD_TESTING)
     add_executable(random_selection_test tests/random_selection_test.cpp)
     target_link_libraries(random_selection_test PRIVATE mozaik_core)
     add_test(NAME random_selection_test COMMAND random_selection_test)
+
+    add_executable(mosaic_render_test tests/mosaic_render_test.cpp)
+    target_link_libraries(mosaic_render_test PRIVATE mozaik_core)
+    add_test(NAME mosaic_render_test COMMAND mosaic_render_test)
+
+    add_executable(validation_resize_test tests/validation_resize_test.cpp)
+    target_link_libraries(validation_resize_test PRIVATE mozaik_core)
+    add_test(NAME validation_resize_test COMMAND validation_resize_test)
 endif()

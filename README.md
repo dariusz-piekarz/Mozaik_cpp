@@ -2,6 +2,8 @@
 
 Mozaik creates a photo mosaic from a source image and a directory of tile images. It is a C++20 version of the [Python Mozaik project](https://github.com/dariusz-piekarz/Mozaik). It can optionally adjust tile colors to match the source image.
 
+For the exact environment setup commands and locally verified steps, see [manual.md](manual.md). For the reasons behind the code changes, see [mods.md](mods.md).
+
 ## Build on Windows
 
 Install CMake 3.21 or newer, Ninja, an LLVM-MinGW C++20 toolchain, and [vcpkg](https://github.com/microsoft/vcpkg). Put `cmake`, `ninja`, `clang`, and `clang++` on `PATH` and set `VCPKG_ROOT` to the vcpkg directory. The repository's vcpkg manifest installs OpenCV, JsonCpp, and spdlog automatically. The first configure may take some time while it builds these libraries.
