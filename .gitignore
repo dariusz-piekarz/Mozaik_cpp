@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+
+# Local configuration and generated files
+/config.json
+/build/
+/vcpkg_installed/
+/x64/
+/examples/output.png
+/CMakeUserPresets.json

@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <ctime>
 #include <fstream>
 #include <iostream>
@@ -11,7 +13,6 @@
 #include <spdlog/spdlog.h>
 
 #include <opencv2/opencv.hpp>
-#include <glob.hpp>
 
 #include "utils.hpp"
 
@@ -40,23 +41,47 @@ Config parseConfig(const fs::path &config_file_path) {
 }
 
 
-std::vector<fs::path> findPaths(const std::string &dirname, const std::string &extension = ".jpg") {
-    const std::string pattern = std::format("{}\\*{}", dirname, extension);
-    return glob::glob(pattern);
+namespace {
+std::string lowercaseExtension(const fs::path &path) {
+    std::string extension = path.extension().string();
+    std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    return extension;
+}
+}
+
+
+std::vector<fs::path> findPaths(const std::string &dirname, const std::string &extension) {
+    std::string wanted = extension;
+    std::ranges::transform(wanted, wanted.begin(), [](unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+
+    std::vector<fs::path> paths;
+    for (const auto &entry : fs::directory_iterator(dirname)) {
+        if (entry.is_regular_file() && lowercaseExtension(entry.path()) == wanted) {
+            paths.push_back(entry.path());
+        }
+    }
+    std::ranges::sort(paths);
+    return paths;
 }
 
 
 std::vector<fs::path> allImagePaths(const std::string &dirname) {
-    std::vector<fs::path> all_paths;
-
-    for (const auto &ext: {".jpg", ".JPG", ".jpeg", ".JPEG", ".png", ".PNG"}) {
-        decltype(auto) temp_paths = findPaths(dirname, ext);
-
-        if (!temp_paths.empty()) {
-            all_paths.insert(all_paths.end(), temp_paths.begin(), temp_paths.end());
+    std::vector<fs::path> paths;
+    for (const auto &entry : fs::directory_iterator(dirname)) {
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+        const std::string extension = lowercaseExtension(entry.path());
+        if (extension == ".jpg" || extension == ".jpeg" || extension == ".png") {
+            paths.push_back(entry.path());
         }
     }
-    return all_paths;
+    std::ranges::sort(paths);
+    return paths;
 }
 
 
@@ -117,7 +142,7 @@ cv::Mat projectImageToColor(const cv::Mat &image, const cv::Vec3b &color_BGR) {
 }
 
 
-inline std::vector<cv::Vec3b> calculateMeans(const std::vector<cv::Mat> &images) {
+std::vector<cv::Vec3b> calculateMeans(const std::vector<cv::Mat> &images) {
     std::vector<cv::Vec3b> means;
     means.reserve(images.size());
     cv::Scalar mean_scalar;
@@ -135,7 +160,7 @@ inline std::vector<cv::Vec3b> calculateMeans(const std::vector<cv::Mat> &images)
 }
 
 
-inline double l2Norm(cv::Vec3b v, cv::Vec3b w) {
+double l2Norm(cv::Vec3b v, cv::Vec3b w) {
     return std::sqrt(
         std::pow(static_cast<double>(v[0] - w[0]), 2) +
         std::pow(static_cast<double>(v[1] - w[1]), 2) +
@@ -144,7 +169,7 @@ inline double l2Norm(cv::Vec3b v, cv::Vec3b w) {
 }
 
 
-inline int closestImage(const std::vector<cv::Vec3b> &means, const cv::Vec3b &color_BGR) {
+int closestImage(const std::vector<cv::Vec3b> &means, const cv::Vec3b &color_BGR) {
     int final_index = 0;
     double final_min_dist = std::numeric_limits<double>::max();
 
@@ -158,7 +183,7 @@ inline int closestImage(const std::vector<cv::Vec3b> &means, const cv::Vec3b &co
     return final_index;
 }
 
-inline int selectClosestPictRandom(const std::vector<cv::Vec3b> &pictures_means_BGR,
+int selectClosestPictRandom(const std::vector<cv::Vec3b> &pictures_means_BGR,
                                    const cv::Vec3b &color_BGR,
                                    const int rank = 30) {
     std::vector<std::pair<double, int> > dists;

@@ -1,14 +1,14 @@
 #pragma once
 
-#define _CRT_SECURE_NO_WARNINGS // switches off warnings in glob.hpp
-
 #include <fstream>
 #include <atomic>
+#include <filesystem>
 #include <mutex>
+#include <string>
+#include <tuple>
 #include <vector>
 
 #include <opencv2/opencv.hpp>
-#include <glob.hpp>
 
 namespace fs = std::filesystem;
 
@@ -38,13 +38,13 @@ extern void freeMemory(std::vector<std::vector<cv::Mat> > &);
 
 extern cv::Mat projectImageToColor(const cv::Mat &, const cv::Vec3b &);
 
-extern inline std::vector<cv::Vec3b> calculateMeans(const std::vector<cv::Mat> &);
+std::vector<cv::Vec3b> calculateMeans(const std::vector<cv::Mat> &);
 
-extern inline double l2Norm(cv::Vec3b, cv::Vec3b);
+double l2Norm(cv::Vec3b, cv::Vec3b);
 
-extern inline int closestImage(const std::vector<cv::Vec3b> &, const cv::Vec3b &);
+int closestImage(const std::vector<cv::Vec3b> &, const cv::Vec3b &);
 
-extern inline int selectClosestPictRandom(const std::vector<cv::Vec3b> &, const cv::Vec3b &, int);
+int selectClosestPictRandom(const std::vector<cv::Vec3b> &, const cv::Vec3b &, int);
 
 extern cv::Mat mergeImages(const std::vector<std::vector<cv::Mat> > &);
 
