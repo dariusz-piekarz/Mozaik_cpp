@@ -40,4 +40,8 @@ if(BUILD_TESTING)
     add_executable(validation_test tests/validation_test.cpp)
     target_link_libraries(validation_test PRIVATE mozaik_core)
     add_test(NAME validation_test COMMAND validation_test)
+
+    add_executable(aspect_ratio_test tests/aspect_ratio_test.cpp)
+    target_link_libraries(aspect_ratio_test PRIVATE mozaik_core)
+    add_test(NAME aspect_ratio_test COMMAND aspect_ratio_test)
 endif()

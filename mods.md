@@ -13,7 +13,7 @@ Ten plik wyjaśnia bieżące zmiany w `Mozaik_cpp`. Numery etapów odnoszą się
 | Rozszerzono `.gitignore` i oznaczono do usunięcia z Git pliki `x64/Release/*.exe`, `*.dll` i `*.pdb`. | Wyniki kompilacji zależą od środowiska i nie powinny zastępować budowania ze źródeł. Lokalna konfiguracja i wynikowy PNG także nie należą do kodu. | Ignorowane są m.in. `/build/`, `/vcpkg_installed/`, `/x64/`, `/config.json`, `/examples/output.png` i `/CMakeUserPresets.json`. Pliki EXE/DLL/PDB były wcześniej śledzone, więc zostały osobno oznaczone do usunięcia z indeksu Git; samo `.gitignore` nie usunęłoby ich ze śledzenia. |
 | Dodano `tests/image_paths_test.cpp`. | Zmiana sposobu wyszukiwania obrazów wymaga sprawdzenia wielkości liter, kolejności i odrzucania innych typów. | Test tworzy tymczasowe pliki o rozszerzeniach `.JpG`, `.JPEG`, `.PnG`, `.gif` oraz katalog `e.jpg`; potwierdza uporządkowany wynik i ignorowanie nieobrazowych wpisów. Test nie sprawdza dekodowania zawartości obrazów. |
 
-`build/local/Testing/Temporary/LastTest.log` zawiera wynik `PASS image discovery` dla `image_paths_test` z 23 października 2026. To dowód lokalnego testu w konfiguracji `build/local`, nie testu presetu `windows-llvm-mingw`. W `CMakeLists.txt` do CTest podłączono `image_paths_test` oraz test etapu 2. Pełny przebieg przykładu i pozostałe testy wymagają osobnego uruchomienia po ich podłączeniu do budowania.
+W tej sesji `cmake --build build/local --target Mozaik image_paths_test` zakończył się kodem 0, `ctest --test-dir build/local -R ^image_paths_test$ --output-on-failure` pokazał `1/1 Passed`, a przykład wygenerował PNG. To weryfikacja istniejącej konfiguracji `build/local`, nie presetu `windows-llvm-mingw`. Wyników nie opieramy na `LastTest.log`, ponieważ CTest nadpisuje ten plik przy kolejnych uruchomieniach. Do CTest dołączono później również testy kolejnych etapów.
 
 ## Etap 2: bezpieczne i uporządkowane wczytywanie kafelków
 
@@ -32,6 +32,14 @@ Wyjątek zgłoszony wewnątrz funkcji roboczej nie może sam przejść przez gra
 Ścieżki względne są teraz rozwiązywane względem katalogu pliku JSON. Ten sam przykład działa więc niezależnie od katalogu, z którego uruchomiono program. `main` przyjmuje ścieżkę JSON jako opcjonalny argument, obsługuje wyjątki i zwraca kod 1 przy błędzie lub 2 przy zbyt wielu argumentach. W trybie interaktywnym `std::getline` zachowuje spacje w ścieżce i kończy działanie po EOF. Wczytanie pustego obrazu głównego oraz nieudany zapis wyniku powodują czytelny błąd zamiast pozornego sukcesu. Zmiana dotyczy wejścia i zgłaszania błędów; nie zmienia doboru kafelków.
 
 Dodano `tests/validation_test.cpp` i podłączono go do CTest. Sprawdza błędny JSON, brakujące lub niepoprawne pola, ścieżki ze spacjami, nieczytelny obraz, błąd zapisu i EOF. Po integracji `cmake --build build/local --target Mozaik validation_test` zakończył się kodem 0, `ctest --test-dir build/local -R ^validation_test$ --output-on-failure` pokazał `1/1 Passed`, a uruchomienie `Mozaik.exe` z przykładowym JSON jako argumentem zakończyło się sukcesem. Test nie sprawdza wszystkich możliwych błędów systemu plików ani wszystkich typów obrazów.
+
+## Etap 4: zachowanie proporcji obrazu
+
+Stary kod liczył proporcję z **wymiarów docelowych**. Wzór na sugerowaną wysokość dawał przez to ponownie wysokość z żądania, więc wybór `Y/W` lub `Y/H` nie przywracał proporcji oryginału. Teraz przy zachowaniu szerokości wysokość jest liczona jako `szerokość_docelowa × wysokość_źródła / szerokość_źródła`, a przy zachowaniu wysokości szerokość jako `wysokość_docelowa × szerokość_źródła / wysokość_źródła`. Odpowiedź `N` nadal używa dokładnie żądanych wymiarów i może zniekształcić obraz zgodnie z decyzją użytkownika.
+
+Porównanie proporcji używa iloczynów krzyżowych w `int64_t`, więc nie zależy od przybliżenia liczb zmiennoprzecinkowych. Wynik jest zaokrąglany do najbliższej liczby całkowitej, a połowa piksela w górę; dla źródła `4 × 3` i żądanej szerokości `2` daje to wysokość `2`. Minimum to jeden piksel, ponieważ OpenCV nie przyjmuje zerowego wymiaru. Funkcja odrzuca pusty obraz i niedodatnie wymiary oraz zgłasza przekroczenie zakresu `int` przed konwersją. Nie gwarantuje to, że bardzo duży obraz zmieści się w pamięci.
+
+Test `aspect_ratio_test` został zbudowany i uruchomiony po integracji: `ctest --test-dir build/local -R ^aspect_ratio_test$ --output-on-failure` pokazał `1/1 Passed`. Obejmuje zachowanie szerokości i wysokości, zgodne proporcje bez pytania, świadome zniekształcenie, zaokrąglenie oraz błędne dane. Nie próbuje tworzyć obrazu bliskiego granicy `INT_MAX`, bo taki test mógłby zużyć wiele gigabajtów pamięci. Obsługa EOF z etapu 3 pozostała zachowana po połączeniu zmian.
 
 ## Uwaga o instrukcji uruchomienia
 

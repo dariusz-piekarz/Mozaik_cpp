@@ -25,7 +25,7 @@ Invoke-WebRequest 'https://github.com/mstorsjo/llvm-mingw/releases/download/2026
 Expand-Archive -LiteralPath $llvmZip -DestinationPath $toolRoot
 ```
 
-Dodaj katalogi z programami do `PATH` bieżącej sesji. Ta zmiana nie zapisuje się na stałe; w nowym oknie PowerShell wykonaj ją ponownie albo dodaj te katalogi do zmiennej środowiskowej użytkownika w ustawieniach Windows. Kolejność ma znaczenie, jeśli masz też inne kompilatory na `PATH`.
+Dodaj katalogi z programami do `PATH` bieżącej sesji. Ta zmiana nie zapisuje się na stałe; w nowym oknie PowerShell ponownie zdefiniuj `$toolRoot` i wykonaj blok ustawiający `PATH`, albo dodaj te katalogi do zmiennej środowiskowej użytkownika w ustawieniach Windows. Kolejność ma znaczenie, jeśli masz też inne kompilatory na `PATH`.
 
 ```powershell
 $env:Path = "$(Join-Path $toolRoot 'cmake-4.4.4-windows-x86_64\bin');$(Join-Path $toolRoot 'ninja-1.13.2');$(Join-Path $toolRoot 'llvm-mingw-20260908-ucrt-x86_64\bin');$env:Path"
@@ -58,7 +58,7 @@ cmake --build --preset windows-llvm-mingw
 ctest --test-dir .\build\windows-llvm-mingw --output-on-failure
 ```
 
-`CMakeLists.txt` rejestruje w CTest `image_paths_test`, `loader_order_test` i `validation_test`. Pozostałe pliki w `tests/` nie oznaczają jeszcze, że uruchamia je `ctest`.
+`CMakeLists.txt` rejestruje w CTest `image_paths_test`, `loader_order_test`, `validation_test` i `aspect_ratio_test`. Pozostałe pliki w `tests/` nie oznaczają jeszcze, że uruchamia je `ctest`.
 
 ## 3. Przykład uruchomienia i dane
 
@@ -82,7 +82,7 @@ W tej sesji polecenie `cmake --build build/local --target Mozaik image_paths_tes
 
 W obecnym środowisku wykryto CMake 4.4.4, Ninja 1.13.2, Clang 23.1.1 z LLVM-MinGW 20260908 oraz vcpkg z katalogu `C:\Users\DXD\Tools\cpp\vcpkg` na commicie `9e593bb18ea69cc5095e012465dcd675a822ed0d`. Są to obserwacje, a nie dowód, że wykonano podane wyżej polecenia pobierania.
 
-Istniejący `build/local/CMakeCache.txt` wskazuje osobną konfigurację Ninja z `VCPKG_MANIFEST_MODE=OFF`, triplet `x64-mingw-static`, OpenCV i spdlog w instalacji vcpkg oraz JsonCpp w `C:\Users\DXD\Tools\cpp\jsoncpp-install`. To lokalny wariant awaryjny, **nie** wynik presetu manifestowego. `build/local/Testing/Temporary/LastTest.log` zapisuje udany test `image_paths_test` z 23 października 2026. Plik `build/local/smoke.png` istnieje, ale sam artefakt nie potwierdza dokładnej komendy, którą go utworzono. W razie problemu z manifestem przykład osobnej konfiguracji zależności znajduje się w `README.md`; nie ma tu kompletnego, sprawdzonego przepisu na zbudowanie osobnej instalacji JsonCpp.
+Istniejący `build/local/CMakeCache.txt` wskazuje osobną konfigurację Ninja z `VCPKG_MANIFEST_MODE=OFF`, triplet `x64-mingw-static`, OpenCV i spdlog w instalacji vcpkg oraz JsonCpp w `C:\Users\DXD\Tools\cpp\jsoncpp-install`. To lokalny wariant awaryjny, **nie** wynik presetu manifestowego. Plik `build/local/smoke.png` istnieje, ale sam artefakt nie potwierdza dokładnej komendy, którą go utworzono. W razie problemu z manifestem przykład osobnej konfiguracji zależności znajduje się w `README.md`; nie ma tu kompletnego, sprawdzonego przepisu na zbudowanie osobnej instalacji JsonCpp.
 
 W tej sesji sprawdzono także test równoległego czytania kafelków w istniejącej konfiguracji lokalnej:
 
@@ -94,3 +94,12 @@ ctest --test-dir build/local -R '^loader_order_test$' --output-on-failure
 Oba polecenia zakończyły się kodem 0; CTest pokazał `1/1 Passed` w 1,67 s. Test używa 64 ścieżek, sprawdza zachowanie kolejności przy dwóch nieczytelnych plikach i przeniesienie wyjątku z wątku.
 
 Po dołączeniu poprawki walidacji w tej sesji wykonano `cmake --build build/local --target Mozaik validation_test` oraz `ctest --test-dir build/local -R ^validation_test$ --output-on-failure`; oba polecenia zakończyły się kodem 0, a CTest pokazał `1/1 Passed`. Polecenie `build\local\Mozaik.exe examples\config.json` uruchomione z katalogu repozytorium również zakończyło się kodem 0 i zgłosiło `Program successfully run`.
+
+Po poprawce proporcji wykonano:
+
+```powershell
+cmake --build build/local --target aspect_ratio_test
+ctest --test-dir build/local -R '^aspect_ratio_test$' --output-on-failure
+```
+
+Kompilacja zakończyła się kodem 0, a test wynikiem `1/1 Passed`. Sprawdza obie drogi zachowania proporcji, zaokrąglenie połówki piksela, dolną granicę jednego piksela, świadome zniekształcenie i niedodatnie wymiary.
