@@ -1,0 +1,11 @@
+{
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": false,
+  "C_Cpp.default.compileCommands": [
+    "${workspaceFolder}/build/local/compile_commands.json",
+    "${workspaceFolder}/build/windows-llvm-mingw/compile_commands.json"
+  ],
+  "C_Cpp.default.compilerPath": "clang++",
+  "C_Cpp.default.intelliSenseMode": "windows-clang-x64",
+  "C_Cpp.default.cppStandard": "c++20"
+}

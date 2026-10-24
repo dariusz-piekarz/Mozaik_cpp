@@ -136,7 +136,24 @@ Dodatkowo dołączono `validation_resize_test`, który sprawdza zakończenie int
 
 Po poprawce domyślnej konfiguracji i rozszerzeniu testów wykonano `cmake --build build/local --parallel 5` oraz `ctest --test-dir build/local --output-on-failure`: kompilacja zakończyła się kodem 0, a CTest pokazał `9/9 Passed`. `mosaic_e2e_test` uruchamia właściwy program z konfiguracją w ścieżce ze spacjami, sprawdza względne ścieżki danych, wybór kafelków, filtrację i zapis PNG `32 × 32`. `mozaik_config_lookup_test` sprawdza kolejność `./config.json`, `./examples/config.json` i komunikat o braku obu plików. Ponownie uruchomiono `.\build\local\Mozaik.exe .\examples\config.json` z katalogu repozytorium: kod wyjścia wyniósł 0, a `examples/output.png` miał 447 bajtów i wymiary `32 × 32`. Piaskownica zablokowała uruchomienie `clang-23`, dlatego udana kompilacja została uruchomiona po zatwierdzeniu wykonania poza nią.
 
-## 5. Jak zachować zasady dokumentowania w innych projektach
+## 5. IntelliSense w VS Code
+
+Zainstaluj rozszerzenia VS Code **C/C++** (`ms-vscode.cpptools`) i **CMake Tools** (`ms-vscode.cmake-tools`). Otwórz bezpośrednio katalog `Mozaik_cpp` albo workspace, w którym jest on osobnym folderem. Ustawienia folderu `.vscode/settings.json` korzystają z `compile_commands.json` wygenerowanego przez CMake dla `build/local` lub `build/windows-llvm-mingw`; nie wpisują osobno katalogów nagłówków bibliotek. Preset projektu włącza `CMAKE_EXPORT_COMPILE_COMMANDS=ON`. Jeśli otwierasz katalog nadrzędny `cpp` jako jedyny folder, jego własny `.vscode/settings.json` musi wskazywać `Mozaik_cpp/build/.../compile_commands.json`, ponieważ VS Code nie czyta wtedy ustawień z podkatalogu repozytorium. Przed pierwszą konfiguracją przygotuj `PATH` i `VCPKG_ROOT` zgodnie z sekcją 1, a następnie skonfiguruj i zbuduj wybrany preset. Dla lokalnego wariantu z osobnym JsonCpp polecenia do samodzielnego wykonania są następujące:
+
+```powershell
+cmake --preset local-manual-jsoncpp
+cmake --build --preset local-manual-jsoncpp --parallel 5
+Test-Path .\build\local\compile_commands.json
+code .
+```
+
+Preset `local-manual-jsoncpp` istnieje tylko w ignorowanym przez Git `CMakeUserPresets.json` i wymaga lokalnych pakietów opisanych w sekcji 4. Na nowym komputerze użyj presetu `windows-llvm-mingw` z sekcji 2; jego baza poleceń będzie w `build/windows-llvm-mingw`. W ustawieniach folderu automatyczne konfigurowanie po otwarciu jest wyłączone, aby edytor nie uruchamiał samodzielnie długiej instalacji zależności z manifestu. W CMake Tools można świadomie wybrać preset i uruchomić **CMake: Configure**. Jeśli otwarte już okno nie odświeży diagnostyki po zmianie ustawień, użyj **Developer: Reload Window**.
+
+Jeśli konfigurujesz projekt ręcznym poleceniem `cmake -S . -B build/local ...` zamiast presetu, dodaj opcję `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`; bez niej baza dla edytora nie powstanie.
+
+Wykonano tutaj `cmake --preset local-manual-jsoncpp`, `cmake --build --preset local-manual-jsoncpp --parallel 5` i `ctest --test-dir build/local --output-on-failure`. CMake utworzył `build/local/compile_commands.json` z 13 wpisami; wpis `main.cpp` wskazuje Clang oraz katalogi OpenCV i vcpkg, a wpis `core.cpp` dodatkowo katalog JsonCpp. Kompilacja zakończyła się kodem 0, testy wynikiem `9/9 Passed`. Sprawdzono poprawność JSON ustawień edytora. Z lokalnego pliku ustawień użytkownika VS Code (`C:\Users\DXD\AppData\Roaming\Code\User\settings.json`) usunięto `C_Cpp.default.systemIncludePath`, które wskazywało `C:\msys64\ucrt64\bin\**` i nadpisywało wykryte przez kompilator nagłówki systemowe. W katalogu nadrzędnym ustawiono dodatkowo `../.vscode/settings.json` z bazą komend i pełną ścieżką do Clang, aby rozwiązanie działało także po otwarciu samego `cpp`. Oba pliki poza repozytorium są lokalne i nie zostaną wysłane na GitHub. Ustawienia repozytorium wybierają `clang++` i tryb `windows-clang-x64`, więc pozostałe globalne ustawienia GCC nie są używane dla tego projektu. Nie odczytywano bezpośrednio diagnostyki z otwartego okna VS Code; polecenie `code .` i odświeżenie okna są instrukcjami, a nie wykonanymi tu krokami.
+
+## 6. Jak zachować zasady dokumentowania w innych projektach
 
 W tym środowisku utworzono `C:\Users\DXD\.codex\AGENTS.md` z regułą prowadzenia `manual.md` i `mods.md` w każdym projekcie. Kopia w tym repozytorium to `AGENTS.md`. Zgodnie z [instrukcją Codex](https://learn.chatgpt.com/docs/agent-configuration/agents-md) plik w katalogu domowym Codex jest globalny, a plik w repozytorium działa lokalnie; Codex odczytuje je przy rozpoczęciu nowej sesji. Lokalizację domową można zmienić przez `CODEX_HOME`.
 
