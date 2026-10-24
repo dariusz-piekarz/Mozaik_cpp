@@ -11,9 +11,7 @@ From PowerShell in the repository directory:
 ```powershell
 cmake --preset windows-llvm-mingw
 cmake --build --preset windows-llvm-mingw
-Push-Location .\examples
-'.\config.json' | & ..\build\windows-llvm-mingw\Mozaik.exe
-Pop-Location
+.\build\windows-llvm-mingw\Mozaik.exe .\examples\config.json
 ```
 
 The sample produces `examples/output.png` (32 × 32 pixels). It uses the included input and tile PNGs, so no personal image paths are needed.
@@ -45,4 +43,4 @@ Copy `examples/config.json` and change these fields for your own images:
 | `show` | Open a window with the finished mosaic |
 | `output_image_path` | Output file; leave empty to skip saving |
 
-In this version, the program prompts for the configuration file path and resolves image paths relative to its working directory. The sample command runs from `examples` for that reason. If the requested `image_size` changes the source image's aspect ratio, the program asks whether to preserve it.
+Relative paths in the configuration are interpreted from the directory containing that configuration file. Run with the JSON path as an argument, or omit the argument to enter it interactively. If the requested `image_size` changes the source image's aspect ratio, the program asks whether to preserve it.

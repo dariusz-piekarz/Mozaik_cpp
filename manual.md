@@ -58,23 +58,23 @@ cmake --build --preset windows-llvm-mingw
 ctest --test-dir .\build\windows-llvm-mingw --output-on-failure
 ```
 
-`CMakeLists.txt` rejestruje w CTest `image_paths_test` i `loader_order_test`. Pozostałe pliki w `tests/` nie oznaczają jeszcze, że uruchamia je `ctest`.
+`CMakeLists.txt` rejestruje w CTest `image_paths_test`, `loader_order_test` i `validation_test`. Pozostałe pliki w `tests/` nie oznaczają jeszcze, że uruchamia je `ctest`.
 
-## 3. Przykład uruchomienia z obecnym kodem
+## 3. Przykład uruchomienia i dane
 
-Aktualny `main.cpp` wywołuje `mozaik2()`, który **pyta na wejściu standardowym o ścieżkę konfiguracji**; argument przekazany po nazwie EXE nie jest używany. Ścieżki `input.png`, `tiles` i `output.png` z `examples/config.json` są obecnie rozwiązywane względem katalogu pracy procesu. Dlatego uruchom program z katalogu `examples`, a na pytanie `Provide a path to the config file:` wpisz `.\config.json` i naciśnij Enter:
+Po poprawce walidacji program przyjmuje ścieżkę JSON jako opcjonalny argument. Ścieżki obrazów i wyniku w JSON są liczone względem katalogu tego pliku. Z katalogu głównego repozytorium uruchom:
 
 ```powershell
-Push-Location .\examples
-& ..\build\windows-llvm-mingw\Mozaik.exe
-# odpowiedź na pytanie programu: .\config.json
-Pop-Location
+.\build\windows-llvm-mingw\Mozaik.exe .\examples\config.json
 Get-Item .\examples\output.png
 ```
 
-Przykład ma siatkę `4 × 4` kafelków po `8 × 8` pikseli, więc zamierzony wynik ma `32 × 32` piksele. Jeżeli program dodatkowo zapyta o zmianę proporcji, odpowiedz interaktywnie zgodnie z komunikatem. `show` jest wyłączone, więc przykład nie otwiera okna podglądu.
+Bez argumentu program zapyta o ścieżkę konfiguracji. Wpisanie jej jako całej linii pozwala używać nazw ze spacjami. Błędny JSON, nieczytelny obraz i błąd zapisu kończą program z komunikatem i kodem niezerowym.
 
-Pliki wejściowe przykładu znajdują się w tym repozytorium: `examples/input.png` oraz cztery pliki `examples/tiles/{blue,green,red,yellow}.png`. Samo uruchomienie przykładu nie pobiera obrazów z sieci. Historia pochodzenia tych pięciu PNG, sposób ich wytworzenia i ich osobna licencja nie są zapisane w repozytorium; nie należy przypisywać im niepotwierdzonego źródła. `examples/output.png` jest wynikiem programu i jest ignorowany przez Git.
+Przykład ma siatkę `4 × 4` kafelków po `8 × 8` pikseli, więc wynik ma `32 × 32` piksele. `show` jest wyłączone; program nie otwiera okna podglądu.
+
+Pliki wejściowe są dołączone do repozytorium: `examples/input.png` oraz `examples/tiles/{blue,green,red,yellow}.png`. Uruchomienie przykładu nie pobiera obrazów z sieci. Historia pochodzenia tych pięciu PNG, sposób ich wytworzenia i ich osobna licencja nie są zapisane w repozytorium. `examples/output.png` jest wynikiem programu i jest ignorowany przez Git.
+
 
 ## 4. Stan sprawdzony lokalnie
 
@@ -93,4 +93,4 @@ ctest --test-dir build/local -R '^loader_order_test$' --output-on-failure
 
 Oba polecenia zakończyły się kodem 0; CTest pokazał `1/1 Passed` w 1,67 s. Test używa 64 ścieżek, sprawdza zachowanie kolejności przy dwóch nieczytelnych plikach i przeniesienie wyjątku z wątku.
 
-Po integracji poprawki wejścia z gałęzi `fix/validation` trzeba zaktualizować powyższy sposób uruchamiania: zmieni ona obsługę argumentu i ścieżek względnych. Do tego czasu obowiązuje procedura opisana w sekcji 3.
+Po dołączeniu poprawki walidacji w tej sesji wykonano `cmake --build build/local --target Mozaik validation_test` oraz `ctest --test-dir build/local -R ^validation_test$ --output-on-failure`; oba polecenia zakończyły się kodem 0, a CTest pokazał `1/1 Passed`. Polecenie `build\local\Mozaik.exe examples\config.json` uruchomione z katalogu repozytorium również zakończyło się kodem 0 i zgłosiło `Program successfully run`.

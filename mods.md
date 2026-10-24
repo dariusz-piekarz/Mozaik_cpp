@@ -25,6 +25,14 @@ Wyjątek zgłoszony wewnątrz funkcji roboczej nie może sam przejść przez gra
 
 `tests/loader_order_test.cpp` jest zarejestrowany w CTest. W tej sesji `cmake --build build/local --target loader_order_test` zakończył się kodem 0, a `ctest --test-dir build/local -R '^loader_order_test$' --output-on-failure` pokazał `1/1 Passed` w 1,67 s. Test tworzy 64 ścieżki, celowo dodaje uszkodzony i brakujący plik, cztery razy sprawdza kolejność 62 odczytanych kafelków oraz sprawdza wyjątek zgłoszony przez `cv::resize` w wątku. `REVIEW.md` oznacza etap 2 jako wykonany.
 
+## Etap 3: walidacja konfiguracji i błędów wejścia/wyjścia
+
+`parseConfig` wcześniej ignorował wynik parsowania JSON i odczytywał pola bez sprawdzania ich obecności ani typu. Brak wymiaru mógł stać się zerem i dopiero OpenCV zgłaszał niejasny błąd. Teraz parser sprawdza, czy otwarto plik, czy JSON jest poprawny, czy zawiera obiekt z ośmioma wymaganymi polami oraz czy rozmiary są dodatnie. Odrzuca nieznane pola i strategie. Ścisły schemat traktuje wcześniej tolerowane komentarze, zbędne pola lub błędne typy jako błędy; dzięki temu literówki są wykrywane na wejściu, a nie podczas przetwarzania obrazu.
+
+Ścieżki względne są teraz rozwiązywane względem katalogu pliku JSON. Ten sam przykład działa więc niezależnie od katalogu, z którego uruchomiono program. `main` przyjmuje ścieżkę JSON jako opcjonalny argument, obsługuje wyjątki i zwraca kod 1 przy błędzie lub 2 przy zbyt wielu argumentach. W trybie interaktywnym `std::getline` zachowuje spacje w ścieżce i kończy działanie po EOF. Wczytanie pustego obrazu głównego oraz nieudany zapis wyniku powodują czytelny błąd zamiast pozornego sukcesu. Zmiana dotyczy wejścia i zgłaszania błędów; nie zmienia doboru kafelków.
+
+Dodano `tests/validation_test.cpp` i podłączono go do CTest. Sprawdza błędny JSON, brakujące lub niepoprawne pola, ścieżki ze spacjami, nieczytelny obraz, błąd zapisu i EOF. Po integracji `cmake --build build/local --target Mozaik validation_test` zakończył się kodem 0, `ctest --test-dir build/local -R ^validation_test$ --output-on-failure` pokazał `1/1 Passed`, a uruchomienie `Mozaik.exe` z przykładowym JSON jako argumentem zakończyło się sukcesem. Test nie sprawdza wszystkich możliwych błędów systemu plików ani wszystkich typów obrazów.
+
 ## Uwaga o instrukcji uruchomienia
 
-`README.md` i `manual.md` opisują uruchomienie obecnej wersji z katalogu `examples`, ponieważ program czyta ścieżkę konfiguracji ze standardowego wejścia, a ścieżki obrazów rozwiązuje względem katalogu pracy. W tej sesji wykonano taki przebieg na `build/local/Mozaik.exe`; program zgłosił powodzenie. Po integracji poprawki walidacji trzeba zaktualizować instrukcję do argumentu CLI i ścieżek względem pliku JSON.
+Po etapie 3 `README.md` i `manual.md` podają polecenie z argumentem CLI oraz ścieżki obrazów liczone względem pliku JSON. Potwierdzono to uruchomieniem dołączonego przykładu z katalogu repozytorium. Wcześniejszy sposób uruchomienia przez standardowe wejście z katalogu `examples` pozostaje zapisany w historii testów jako stan przed zmianą.

@@ -36,4 +36,8 @@ if(BUILD_TESTING)
     add_executable(loader_order_test tests/loader_order_test.cpp)
     target_link_libraries(loader_order_test PRIVATE mozaik_core)
     add_test(NAME loader_order_test COMMAND loader_order_test)
+
+    add_executable(validation_test tests/validation_test.cpp)
+    target_link_libraries(validation_test PRIVATE mozaik_core)
+    add_test(NAME validation_test COMMAND validation_test)
 endif()
