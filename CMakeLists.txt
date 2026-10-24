@@ -44,4 +44,8 @@ if(BUILD_TESTING)
     add_executable(aspect_ratio_test tests/aspect_ratio_test.cpp)
     target_link_libraries(aspect_ratio_test PRIVATE mozaik_core)
     add_test(NAME aspect_ratio_test COMMAND aspect_ratio_test)
+
+    add_executable(random_selection_test tests/random_selection_test.cpp)
+    target_link_libraries(random_selection_test PRIVATE mozaik_core)
+    add_test(NAME random_selection_test COMMAND random_selection_test)
 endif()

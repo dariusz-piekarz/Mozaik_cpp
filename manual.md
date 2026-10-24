@@ -58,7 +58,7 @@ cmake --build --preset windows-llvm-mingw
 ctest --test-dir .\build\windows-llvm-mingw --output-on-failure
 ```
 
-`CMakeLists.txt` rejestruje w CTest `image_paths_test`, `loader_order_test`, `validation_test` i `aspect_ratio_test`. Pozostałe pliki w `tests/` nie oznaczają jeszcze, że uruchamia je `ctest`.
+`CMakeLists.txt` rejestruje w CTest `image_paths_test`, `loader_order_test`, `validation_test`, `aspect_ratio_test` i `random_selection_test`. Pozostałe pliki w `tests/` nie oznaczają jeszcze, że uruchamia je `ctest`.
 
 ## 3. Przykład uruchomienia i dane
 
@@ -103,3 +103,12 @@ ctest --test-dir build/local -R '^aspect_ratio_test$' --output-on-failure
 ```
 
 Kompilacja zakończyła się kodem 0, a test wynikiem `1/1 Passed`. Sprawdza obie drogi zachowania proporcji, zaokrąglenie połówki piksela, dolną granicę jednego piksela, świadome zniekształcenie i niedodatnie wymiary.
+
+Po poprawce wyboru losowego kafelka wykonano:
+
+```powershell
+cmake --build build/local --target random_selection_test
+ctest --test-dir build/local -R '^random_selection_test$' --output-on-failure
+```
+
+Oba polecenia zakończyły się kodem 0, a test wynikiem `1/1 Passed`. Sprawdza wybór tylko z najbliższych kandydatów, remisy, puste wejście, niepoprawny i nadmierny `rank` oraz ponowne użycie bufora.

@@ -41,6 +41,14 @@ Porównanie proporcji używa iloczynów krzyżowych w `int64_t`, więc nie zale�
 
 Test `aspect_ratio_test` został zbudowany i uruchomiony po integracji: `ctest --test-dir build/local -R ^aspect_ratio_test$ --output-on-failure` pokazał `1/1 Passed`. Obejmuje zachowanie szerokości i wysokości, zgodne proporcje bez pytania, świadome zniekształcenie, zaokrąglenie oraz błędne dane. Nie próbuje tworzyć obrazu bliskiego granicy `INT_MAX`, bo taki test mógłby zużyć wiele gigabajtów pamięci. Obsługa EOF z etapu 3 pozostała zachowana po połączeniu zmian.
 
+## Etap 5: wybór losowego kafelka
+
+Poprzedni `selectClosestPictRandom` obliczał odległości do wszystkich kafelków, sortował je w całości (`O(N log N)`) i przy każdym pikselu tworzył nowy `std::random_device` oraz generator. Uruchamiał też wewnętrzny region OpenMP, chociaż wywołujący go `restructure` już równoleglił pętlę po pikselach. Tworzenie regionu i sekcji krytycznej dla każdego piksela mogło kosztować więcej niż obliczenie krótkiej listy odległości.
+
+Nowy kod utrzymuje kopiec najwyżej `k` najbliższych kafelków (`O(N log k)` czasu, `O(k)` pamięci), liczy kwadraty odległości zamiast `sqrt` i `pow` (zachowuje tę samą kolejność), a generator `std::mt19937` inicjuje raz na wątek. `thread_local` bufor kandydatów jest czyszczony przy każdym wywołaniu i nie jest współdzielony między wątkami. Przy jednakowej odległości para `(odległość, indeks)` rozstrzyga remis niższym indeksem. `rank <= 0` lub pusta lista zwraca `-1`. Gdy `k` rośnie proporcjonalnie do `N`, złożoność asymptotyczna nadal zbliża się do `O(N log N)`, ale kopiec jest zwykle znacznie mniejszy od pełnej listy.
+
+Usunięto tylko OpenMP **wewnątrz tej funkcji**. Inne dyrektywy w `core.cpp`, opcjonalne wykrywanie OpenMP w CMake i funkcja `openmp` manifestu OpenCV pozostały. Przy kolejnym etapie składania obrazu trzeba ponownie ocenić, które dyrektywy leżą na aktywnej ścieżce wykonania. `random_selection_test` po integracji zbudował się i przeszedł (`1/1 Passed`); test sprawdza granice i przynależność wyniku do najbliższych kandydatów, nie mierzy wydajności ani statystycznej równomierności losowania.
+
 ## Uwaga o instrukcji uruchomienia
 
 Po etapie 3 `README.md` i `manual.md` podają polecenie z argumentem CLI oraz ścieżki obrazów liczone względem pliku JSON. Potwierdzono to uruchomieniem dołączonego przykładu z katalogu repozytorium. Wcześniejszy sposób uruchomienia przez standardowe wejście z katalogu `examples` pozostaje zapisany w historii testów jako stan przed zmianą.
