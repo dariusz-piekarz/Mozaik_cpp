@@ -120,6 +120,27 @@ void testFilteredPatternMatchesPreviousColorRule() {
     }
 }
 
+void testUnfilteredPatternPreserved() {
+    cv::Mat tile(2, 3, CV_8UC3);
+    for (int row = 0; row < tile.rows; ++row) {
+        for (int col = 0; col < tile.cols; ++col) {
+            tile.at<cv::Vec3b>(row, col) = cv::Vec3b(
+                row * 80 + col * 10, row * 20 + col * 40, row * 30 + col * 50);
+        }
+    }
+    const cv::Mat source(1, 2, CV_8UC3, cv::Scalar(0, 0, 0));
+    const cv::Mat result = renderMosaic({tile}, source, "duplication", false);
+    require(result.size() == cv::Size(6, 2), "Unfiltered pattern has incorrect dimensions");
+    for (int block = 0; block < 2; ++block) {
+        for (int row = 0; row < tile.rows; ++row) {
+            for (int col = 0; col < tile.cols; ++col) {
+                requireColor(result, row, block * tile.cols + col,
+                             tile.at<cv::Vec3b>(row, col));
+            }
+        }
+    }
+}
+
 void testRandomStrategyWithOneTile() {
     const std::vector<cv::Mat> tiles{
         cv::Mat(1, 2, CV_8UC3, cv::Scalar(7, 8, 9))
@@ -141,6 +162,7 @@ int main() {
         testPixelMeanSelection();
         testFiltration();
         testFilteredPatternMatchesPreviousColorRule();
+        testUnfilteredPatternPreserved();
         testRandomStrategyWithOneTile();
         std::cout << "PASS mosaic rendering\n";
         return 0;

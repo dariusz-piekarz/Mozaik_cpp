@@ -141,8 +141,8 @@ extern void mozaikCoreApp(const fs::path &config_path);
 
 /**
  * Main function of the mozaik app.
- * It reads the configuration file and runs the mozaik app.
- The config file is read from the location of the core.hpp file.
+ * Reads ./config.json, or ./examples/config.json if the first file is absent.
+ * Both paths are resolved from the current working directory.
  *
  * @return void
  **/

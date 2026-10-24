@@ -58,7 +58,7 @@ cmake --build --preset windows-llvm-mingw
 ctest --test-dir .\build\windows-llvm-mingw --output-on-failure
 ```
 
-`CMakeLists.txt` rejestruje w CTest siedem testów: `image_paths_test`, `loader_order_test`, `validation_test`, `aspect_ratio_test`, `random_selection_test`, `mosaic_render_test` i `validation_resize_test`.
+`CMakeLists.txt` rejestruje w CTest dziewięć testów: `image_paths_test`, `loader_order_test`, `validation_test`, `aspect_ratio_test`, `random_selection_test`, `mosaic_render_test`, `validation_resize_test`, `mosaic_e2e_test` i `mozaik_config_lookup_test`.
 
 ## 3. Przykład uruchomienia i dane
 
@@ -69,11 +69,11 @@ Po poprawce walidacji program przyjmuje ścieżkę JSON jako opcjonalny argument
 Get-Item .\examples\output.png
 ```
 
-Bez argumentu program zapyta o ścieżkę konfiguracji. Wpisanie jej jako całej linii pozwala używać nazw ze spacjami. Błędny JSON, nieczytelny obraz i błąd zapisu kończą program z komunikatem i kodem niezerowym.
+Bez argumentu program zapyta o ścieżkę konfiguracji. Wpisanie jej jako całej linii pozwala używać nazw ze spacjami. Błędny JSON, nieczytelny obraz i błąd zapisu kończą program z komunikatem i kodem niezerowym. Publiczna funkcja biblioteczna `mozaik()` wybiera `./config.json` z bieżącego katalogu, a gdy go nie ma — `./examples/config.json`; polecenie CLI z argumentem korzysta bezpośrednio ze wskazanej ścieżki.
 
 Przykład ma siatkę `4 × 4` kafelków po `8 × 8` pikseli, więc wynik ma `32 × 32` piksele. `show` jest wyłączone; program nie otwiera okna podglądu.
 
-Pliki wejściowe są dołączone do repozytorium: `examples/input.png` oraz `examples/tiles/{blue,green,red,yellow}.png`. Uruchomienie przykładu nie pobiera obrazów z sieci. Historia pochodzenia tych pięciu PNG, sposób ich wytworzenia i ich osobna licencja nie są zapisane w repozytorium. `examples/output.png` jest wynikiem programu i jest ignorowany przez Git.
+Pliki wejściowe są dołączone do repozytorium: `examples/input.png` oraz `examples/tiles/{blue,green,red,yellow}.png`. Uruchomienie przykładu nie pobiera obrazów z sieci. Pięć małych PNG wygenerowano podczas tej pracy w Pythonie 3.14.8 przy użyciu modułów standardowych `struct` i `zlib`; skrypt generatora nie jest częścią repozytorium. `examples/output.png` jest wynikiem programu i jest ignorowany przez Git.
 
 ## 4. Stan sprawdzony lokalnie
 
@@ -81,7 +81,25 @@ W tej sesji polecenie `cmake --build build/local --target Mozaik image_paths_tes
 
 W obecnym środowisku wykryto CMake 4.4.4, Ninja 1.13.2, Clang 23.1.1 z LLVM-MinGW 20260908 oraz vcpkg z katalogu `C:\Users\DXD\Tools\cpp\vcpkg` na commicie `9e593bb18ea69cc5095e012465dcd675a822ed0d`. Są to obserwacje, a nie dowód, że wykonano podane wyżej polecenia pobierania.
 
-Istniejący `build/local/CMakeCache.txt` wskazuje osobną konfigurację Ninja z `VCPKG_MANIFEST_MODE=OFF`, triplet `x64-mingw-static`, OpenCV i spdlog w instalacji vcpkg oraz JsonCpp w `C:\Users\DXD\Tools\cpp\jsoncpp-install`. To lokalny wariant awaryjny, **nie** wynik presetu manifestowego. Plik `build/local/smoke.png` istnieje, ale sam artefakt nie potwierdza dokładnej komendy, którą go utworzono. W razie problemu z manifestem przykład osobnej konfiguracji zależności znajduje się w `README.md`; nie ma tu kompletnego, sprawdzonego przepisu na zbudowanie osobnej instalacji JsonCpp.
+Istniejący `build/local/CMakeCache.txt` wskazuje osobną konfigurację Ninja z `VCPKG_MANIFEST_MODE=OFF`, triplet `x64-mingw-static`, OpenCV i spdlog w instalacji vcpkg oraz JsonCpp w `C:\Users\DXD\Tools\cpp\jsoncpp-install`. To lokalny wariant awaryjny, **nie** wynik presetu manifestowego. Plik `build/local/smoke.png` istnieje, ale sam artefakt nie potwierdza dokładnej komendy, którą go utworzono. W razie problemu z manifestem przykład osobnej konfiguracji zależności znajduje się w `README.md`; poniżej podano także polecenia faktycznie wykonane przy lokalnej instalacji JsonCpp.
+
+### Ręczna instalacja JsonCpp wykonana 23.10.2026
+
+Automatyczne `vcpkg install jsoncpp:x64-mingw-static` zawiesiło się dwukrotnie podczas `detect_compiler`; druga próba użyła `VCPKG_FORCE_SYSTEM_BINARIES=1`. Procesy przerwano, więc instalacja manifestowa nie została potwierdzona. OpenCV 4.12.0 i spdlog 1.17.0 dla tripletu `x64-mingw-static` były już wcześniej w lokalnej instalacji vcpkg. Wykonano poniższe polecenia z katalogu repozytorium; klon JsonCpp 1.9.6 wskazywał commit `89e2973c754a9c02a49974d839779b151e95afd6`:
+
+```powershell
+git clone --depth 1 --branch 1.9.6 https://github.com/open-source-parsers/jsoncpp.git C:\Users\DXD\Tools\cpp\jsoncpp-src
+cmake -S C:\Users\DXD\Tools\cpp\jsoncpp-src -B C:\Users\DXD\Tools\cpp\jsoncpp-build -G Ninja -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DJSONCPP_WITH_TESTS=OFF -DJSONCPP_WITH_POST_BUILD_UNITTEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=C:\Users\DXD\Tools\cpp\jsoncpp-install
+cmake --build C:\Users\DXD\Tools\cpp\jsoncpp-build --parallel 5
+cmake --install C:\Users\DXD\Tools\cpp\jsoncpp-build
+cmake -S . -B build\local -G Ninja -DCMAKE_TOOLCHAIN_FILE=C:\Users\DXD\Tools\cpp\vcpkg\scripts\buildsystems\vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-mingw-static -DVCPKG_MANIFEST_MODE=OFF -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -Djsoncpp_DIR=C:\Users\DXD\Tools\cpp\jsoncpp-install\lib\cmake\jsoncpp
+cmake --build build\local --parallel 5
+ctest --test-dir build\local --output-on-failure
+```
+
+Do powtórzenia tych poleceń na nowej maszynie trzeba wcześniej przygotować vcpkg z OpenCV i spdlog dla tego samego tripletu oraz umieścić Clang i Ninja na `PATH`. Samo sklonowanie JsonCpp nie zastępuje tych pakietów. Lokalny ignorowany przez Git `CMakeUserPresets.json` zapisuje `VCPKG_MANIFEST_MODE=OFF`, `jsoncpp_DIR=C:/Users/DXD/Tools/cpp/jsoncpp-install/lib/cmake/jsoncpp` i katalog `build/local`; wykonano też `cmake --preset local-manual-jsoncpp` oraz `cmake --build --preset local-manual-jsoncpp --parallel 5`.
+
+Przed dodaniem argumentu CLI wykonano test z `build/local/smoke-config.json` zawierającym absolutne ścieżki do przykładowych obrazów: `$cfgPath | & .\build\local\Mozaik.exe`. Program zakończył się kodem 0 i utworzył `build/local/smoke.png` (447 bajtów, PNG `32 × 32`). Jest to zapis historycznego przebiegu; obecnie wystarcza prostsza komenda z sekcji 3.
 
 W tej sesji sprawdzono także test równoległego czytania kafelków w istniejącej konfiguracji lokalnej:
 
@@ -115,6 +133,8 @@ Oba polecenia zakończyły się kodem 0, a test wynikiem `1/1 Passed`. Sprawdza 
 Po zmianie renderowania wykonano `cmake --build build/local --target Mozaik mosaic_render_test validation_test`, `ctest --test-dir build/local --output-on-failure` oraz `build\local\Mozaik.exe examples\config.json` z katalogu repozytorium. Kompilacja i program zakończyły się kodem 0, a CTest pokazał `6/6 Passed`; program ponownie wygenerował `examples/output.png`. Test renderowania sprawdza rozmiar, układ kafelków, dobór według średniego koloru, filtrowanie i strategię losową z jednym kafelkiem. Nowy sposób filtrowania porównano piksel po pikselu z dotychczasową regułą dla kafelka o zróżnicowanych kolorach.
 
 Dodatkowo dołączono `validation_resize_test`, który sprawdza zakończenie interaktywnych pytań po EOF. Polecenia `cmake --build build/local --target validation_resize_test` i `ctest --test-dir build/local -R '^validation_resize_test$' --output-on-failure` zakończyły się kodem 0, a test wynikiem `1/1 Passed`. Ponowne uruchomienie pełnego `ctest --test-dir build/local --output-on-failure` po dołączeniu testu pokazało `7/7 Passed`.
+
+Po poprawce domyślnej konfiguracji i rozszerzeniu testów wykonano `cmake --build build/local --parallel 5` oraz `ctest --test-dir build/local --output-on-failure`: kompilacja zakończyła się kodem 0, a CTest pokazał `9/9 Passed`. `mosaic_e2e_test` uruchamia właściwy program z konfiguracją w ścieżce ze spacjami, sprawdza względne ścieżki danych, wybór kafelków, filtrację i zapis PNG `32 × 32`. `mozaik_config_lookup_test` sprawdza kolejność `./config.json`, `./examples/config.json` i komunikat o braku obu plików. Ponownie uruchomiono `.\build\local\Mozaik.exe .\examples\config.json` z katalogu repozytorium: kod wyjścia wyniósł 0, a `examples/output.png` miał 447 bajtów i wymiary `32 × 32`. Piaskownica zablokowała uruchomienie `clang-23`, dlatego udana kompilacja została uruchomiona po zatwierdzeniu wykonania poza nią.
 
 ## 5. Jak zachować zasady dokumentowania w innych projektach
 

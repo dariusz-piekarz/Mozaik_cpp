@@ -57,23 +57,32 @@ int main() {
             expected_colors.push_back(color);
         }
 
-        for (int run = 0; run < 4; ++run) {
-            const auto images = readImages(paths, tile_size);
-            if (images.size() != expected_colors.size()) {
-                throw std::runtime_error("Unreadable images were not skipped correctly");
-            }
-            for (std::size_t i = 0; i < images.size(); ++i) {
-                if (images[i].size() != tile_size || images[i].type() != CV_8UC3) {
-                    throw std::runtime_error("An image has incorrect dimensions or type");
+        const auto verify_order = [&](std::size_t path_count, int repeats) {
+            const std::vector<fs::path> selected(paths.begin(), paths.begin() + path_count);
+            const std::size_t expected_count = path_count - (path_count > 12) - (path_count > 37);
+            for (int run = 0; run < repeats; ++run) {
+                const auto images = readImages(selected, tile_size);
+                if (images.size() != expected_count) {
+                    throw std::runtime_error("Unreadable images were not skipped correctly");
                 }
-                const auto actual = images[i].at<cv::Vec3b>(0, 0);
-                for (int channel = 0; channel < 3; ++channel) {
-                    if (actual[channel] != expected_colors[i][channel]) {
-                        throw std::runtime_error("Images are not in input path order at index " + std::to_string(i));
+                for (std::size_t i = 0; i < images.size(); ++i) {
+                    if (images[i].size() != tile_size || images[i].type() != CV_8UC3) {
+                        throw std::runtime_error("An image has incorrect dimensions or type");
+                    }
+                    const auto actual = images[i].at<cv::Vec3b>(0, 0);
+                    for (int channel = 0; channel < 3; ++channel) {
+                        if (actual[channel] != expected_colors[i][channel]) {
+                            throw std::runtime_error("Images are not in input path order at index " +
+                                                     std::to_string(i));
+                        }
                     }
                 }
             }
-        }
+        };
+        verify_order(3, 1);   // Small sequential load.
+        verify_order(50, 1);  // Last size before the parallel branch.
+        verify_order(51, 2);  // First size in the parallel branch.
+        verify_order(64, 4);
 
         bool resize_failed = false;
         try {

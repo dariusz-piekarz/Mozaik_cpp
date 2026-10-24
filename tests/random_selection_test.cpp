@@ -65,6 +65,16 @@ void testBufferRefresh() {
     }
 }
 
+void testGreenAndRedChannels() {
+    const std::vector<cv::Vec3b> means{
+        {0, 0, 0}, {0, 255, 0}, {0, 0, 255}
+    };
+    require(selectClosestPictRandom(means, cv::Vec3b(0, 255, 0), 1) == 1,
+            "Green channel was ignored when ranking candidates");
+    require(selectClosestPictRandom(means, cv::Vec3b(0, 0, 255), 1) == 2,
+            "Red channel was ignored when ranking candidates");
+}
+
 } // namespace
 
 int main() {
@@ -75,6 +85,7 @@ int main() {
         testEmptyInput();
         testInvalidRank();
         testBufferRefresh();
+        testGreenAndRedChannels();
         std::cout << "PASS random selection\n";
         return 0;
     } catch (const std::exception &error) {

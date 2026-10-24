@@ -10,7 +10,6 @@
 #include <mutex>
 #include <thread>
 #include <optional>
-#include <source_location>
 #include <stdexcept>
 #include <utility>
 
@@ -389,17 +388,21 @@ void mozaikCoreApp(const fs::path &config_path) {
 
 
 void mozaik() {
-    std::source_location sl = std::source_location::current();
-    const fs::path cfg_path = fs::path(sl.file_name()).parent_path();
-    const fs::path config_path = cfg_path.string() + "\\config.json";
-
-
-    if (!fs::exists(config_path)) {
-        throw fs::filesystem_error("Error: The config file does not exist:", config_path,
-                                   std::error_code(std::make_error_code(std::errc::no_such_file_or_directory)));
+    const fs::path local_config = fs::current_path() / "config.json";
+    if (fs::is_regular_file(local_config)) {
+        mozaikCoreApp(local_config);
+        return;
     }
 
-    mozaikCoreApp(config_path);
+    const fs::path example_config = fs::current_path() / "examples" / "config.json";
+    if (fs::is_regular_file(example_config)) {
+        mozaikCoreApp(example_config);
+        return;
+    }
+
+    throw fs::filesystem_error("No config.json found in the current directory or examples:",
+                               example_config,
+                               std::make_error_code(std::errc::no_such_file_or_directory));
 }
 
 void mozaik2() {

@@ -1,6 +1,6 @@
 # Przegląd projektu i plan poprawek
 
-Przegląd wykonano dla kodu z gałęzi `main` przed zmianami. Zadania są ułożone w kolejności realizacji. Każdy punkt zatwierdzono osobnymi commitami; po końcowej weryfikacji cała seria może zostać wypchnięta na `main`.
+Przegląd wykonano dla kodu z gałęzi `main` przed zmianami. Zadania są ułożone w kolejności realizacji. Każdy punkt zatwierdzono osobnymi commitami i sprawdzono odpowiednimi testami.
 
 - [x] **1. Odtwarzalna kompilacja i uruchomienie.** Brakuje konfiguracji budowania, listy zależności i kompletnej instrukcji (`README.md`). Dodać CMake, manifest zależności, przykładową konfigurację oraz sprawdzić kompilację i uruchomienie na Windows. Usunąć również deklaracje `extern inline` z `utils.hpp`, których definicji nie widać w innych jednostkach translacji. Zastąpić niezgodną i zależną od platformy bibliotekę `glob` przez `std::filesystem` oraz obsłużyć wielkość liter w rozszerzeniach. Usunąć śledzone pliki EXE/DLL/PDB i ignorować wyniki kompilacji.
 - [x] **2. Bezpieczne i przewidywalne wczytywanie kafelków.** `_readImages2` zwraca wektor przed zakończeniem `std::jthread` (`core.cpp`), a wątki mogą korzystać z już zniszczonych zmiennych. Równoległe dopisywanie kafelków zmienia też ich kolejność. Zaczekać na wątki przed zwróceniem wyniku i zachować kolejność ścieżek; sprawdzić przypadek ponad 50 plików.
@@ -8,5 +8,6 @@ Przegląd wykonano dla kodu z gałęzi `main` przed zmianami. Zadania są ułoż
 - [x] **4. Zachowanie proporcji obrazu.** `mainImageResize` używa proporcji wymiarów docelowych zamiast obrazu źródłowego (`core.cpp`), więc odpowiedź `Y` nie zmienia błędnych proporcji. Poprawić obliczenia i sprawdzić warianty zachowania szerokości oraz wysokości.
 - [x] **5. Wydajniejszy wybór losowego kafelka.** `selectClosestPictRandom` sortuje wszystkie odległości, uruchamia zagnieżdżony region OpenMP i tworzy generator z `random_device` dla każdego piksela (`utils.cpp`). Wybrać tylko najbliższe kafelki, używać generatora lokalnego dla wątku i przetestować poprawność wyboru.
 - [x] **6. Mniejsze zużycie pamięci przy składaniu mozaiki.** `restructure`, `project` i `mergeImages` trzymają pełne siatki oraz kopie obrazu wynikowego jednocześnie (`core.cpp`, `utils.cpp`). Składać wynik bezpośrednio w docelowej macierzy, z filtrowaniem kafelka na miejscu, i potwierdzić rozmiar oraz zawartość obrazu wynikowego.
+- [x] **7. Działający domyślny plik konfiguracji i test pełnego uruchomienia.** Po usunięciu prywatnego `config.json` funkcja `mozaik()` nadal szukała go przy ścieżce źródła zapisanej podczas kompilacji (`core.cpp`). Wybierać konfigurację z bieżącego katalogu lub dołączony przykład, a w testach sprawdzić poprawny przebieg CLI z relatywnymi ścieżkami i zapisem PNG oraz istotne granice algorytmów.
 
 Po każdej zmianie uruchomić odpowiednie testy, a na końcu pełny scenariusz generowania obrazu.
