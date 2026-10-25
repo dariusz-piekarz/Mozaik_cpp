@@ -83,6 +83,7 @@ constexpr std::string_view valid_json = R"({
     "filler_images_dir_path": "tiles",
     "image_size": [2, 2],
     "sub_images_size": [1, 1],
+    "aspect_ratio": "preserve_width",
     "strategy": "duplication",
     "filtration": false,
     "show": false,
@@ -125,6 +126,10 @@ void test_config_validation() {
           "show");
     check(replace_once(std::string(valid_json), "\"duplication\"", "\"missing\""),
           "Unsupported config strategy");
+    check(replace_once(std::string(valid_json), "\"preserve_width\"", "\"missing\""),
+          "Unsupported aspect_ratio mode");
+    check(replace_once(std::string(valid_json), "\"preserve_width\"", "false"),
+          "aspect_ratio");
     check(replace_once(std::string(valid_json), "\"show\": false", "\"unexpected\": 1, \"show\": false"),
           "Unknown config field");
 }
@@ -133,6 +138,7 @@ void test_relative_paths_and_spaces() {
     TemporaryDirectory temp;
     const fs::path config_path = temp.write("config with spaces.json", std::string(valid_json));
     const Config config = parseConfig(config_path);
+    require(config.aspect_ratio == "preserve_width", "Incorrect aspect-ratio mode");
     require(fs::path(config.image_path) == temp.path() / "main.png", "Incorrect main image path");
     require(fs::path(config.filler_images_dir_path) == temp.path() / "tiles",
             "Incorrect tile directory path");
@@ -144,6 +150,11 @@ void test_relative_paths_and_spaces() {
                                         "\"output_image_path\": \"\"");
     require(parseConfig(temp.write("config.json", no_output)).output_image_path.empty(),
             "Empty optional output path was rejected");
+
+    const auto without_aspect = replace_once(std::string(valid_json),
+        "    \"aspect_ratio\": \"preserve_width\",\n", "");
+    require(parseConfig(temp.write("legacy.json", without_aspect)).aspect_ratio == "interactive",
+            "Missing aspect-ratio mode did not default to interactive");
 }
 
 void test_unreadable_main_image() {

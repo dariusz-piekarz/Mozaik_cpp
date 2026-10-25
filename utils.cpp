@@ -44,9 +44,9 @@ Config parseConfig(const fs::path &config_file_path) {
         throw std::invalid_argument("Config must contain a JSON object: " + config_file_path.string());
     }
 
-    constexpr std::array<std::string_view, 8> allowed_fields = {
+    constexpr std::array<std::string_view, 9> allowed_fields = {
         "image_path", "filler_images_dir_path", "image_size", "sub_images_size",
-        "strategy", "filtration", "show", "output_image_path"
+        "aspect_ratio", "strategy", "filtration", "show", "output_image_path"
     };
     for (const auto &name : root.getMemberNames()) {
         if (std::find(allowed_fields.begin(), allowed_fields.end(), std::string_view(name)) ==
@@ -96,6 +96,13 @@ Config parseConfig(const fs::path &config_file_path) {
     config.filler_images_dir_path = resolve_path(require_string("filler_images_dir_path"));
     config.image_size = require_size("image_size");
     config.sub_images_size = require_size("sub_images_size");
+    if (root.isMember("aspect_ratio")) {
+        config.aspect_ratio = require_string("aspect_ratio");
+    }
+    if (config.aspect_ratio != "interactive" && config.aspect_ratio != "preserve_width" &&
+        config.aspect_ratio != "preserve_height" && config.aspect_ratio != "stretch") {
+        throw std::invalid_argument("Unsupported aspect_ratio mode: " + config.aspect_ratio);
+    }
     config.strategy = require_string("strategy");
     if (config.strategy != "duplication" && config.strategy != "pixel_mean" &&
         config.strategy != "pixel_mean_random") {

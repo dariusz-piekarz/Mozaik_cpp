@@ -18,6 +18,7 @@ struct Config {
     std::string filler_images_dir_path;
     std::tuple<int, int> image_size;
     std::tuple<int, int> sub_images_size;
+    std::string aspect_ratio = "interactive";
     std::string strategy;
     bool filtration = false;
     bool show = false;

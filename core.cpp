@@ -99,7 +99,8 @@ std::vector<cv::Mat> readImages(const std::vector<fs::path> &paths, const cv::Si
 }
 
 
-void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size) {
+void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size,
+                     const std::string_view aspect_ratio) {
     const int width = std::get<0>(new_size);
     const int height = std::get<1>(new_size);
     if (image.empty() || width <= 0 || height <= 0) {
@@ -115,8 +116,27 @@ void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size) {
         return static_cast<int>(rounded > 0 ? rounded : 1);
     };
 
-    if (static_cast<std::int64_t>(image.cols) * height == static_cast<std::int64_t>(image.rows) * width) {
+    if (aspect_ratio != "interactive" && aspect_ratio != "preserve_width" &&
+        aspect_ratio != "preserve_height" && aspect_ratio != "stretch") {
+        throw std::invalid_argument("Unsupported aspect ratio mode: " + std::string(aspect_ratio));
+    }
+
+    const auto resizePreservingWidth = [&]() {
+        const int suggested_height = proportionalSize(width, image.rows, image.cols);
+        cv::resize(image, image, cv::Size(width, suggested_height), 0, 0, cv::INTER_AREA);
+    };
+    const auto resizePreservingHeight = [&]() {
+        const int suggested_width = proportionalSize(height, image.cols, image.rows);
+        cv::resize(image, image, cv::Size(suggested_width, height), 0, 0, cv::INTER_AREA);
+    };
+
+    if (static_cast<std::int64_t>(image.cols) * height == static_cast<std::int64_t>(image.rows) * width ||
+        aspect_ratio == "stretch") {
         cv::resize(image, image, cv::Size(width, height), 0, 0, cv::INTER_AREA);
+    } else if (aspect_ratio == "preserve_width") {
+        resizePreservingWidth();
+    } else if (aspect_ratio == "preserve_height") {
+        resizePreservingHeight();
     } else {
         std::cout << "Original proportion is not preserved with the provided new size. " <<
                 "If you want to rescale with preserving proportion press Y / y, otherwise press N / n.\n";
@@ -148,11 +168,9 @@ void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size) {
             }
 
             if (decision == "W" || decision == "w") {
-                const int suggested_height = proportionalSize(width, image.rows, image.cols);
-                cv::resize(image, image, cv::Size(width, suggested_height), 0, 0, cv::INTER_AREA);
+                resizePreservingWidth();
             } else if (decision == "H" || decision == "h") {
-                const int suggested_width = proportionalSize(height, image.cols, image.rows);
-                cv::resize(image, image, cv::Size(suggested_width, height), 0, 0, cv::INTER_AREA);
+                resizePreservingHeight();
             }
         } else {
             cv::resize(image, image, cv::Size(width, height), 0, 0, cv::INTER_AREA);
@@ -360,7 +378,7 @@ void mozaikCoreApp(const fs::path &config_path) {
     spdlog::info("Reading sub images completed in time: " + elapseTime(start1, end1));
     spdlog::info("Rescaling main image started.");
 
-    mainImageResize(image, config.image_size);
+    mainImageResize(image, config.image_size, config.aspect_ratio);
 
     spdlog::info("Rescaling main image completed.");
     spdlog::info("Rendering mosaic started.");

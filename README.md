@@ -40,9 +40,10 @@ Copy `examples/config.json` and change these fields for your own images:
 | `filler_images_dir_path` | Directory containing `.jpg`, `.jpeg`, or `.png` tiles |
 | `image_size` | Mosaic width and height in tiles |
 | `sub_images_size` | Width and height of each output tile in pixels |
+| `aspect_ratio` | `interactive`, `preserve_width`, `preserve_height`, or `stretch`; defaults to `interactive` when omitted |
 | `strategy` | `duplication`, `pixel_mean`, or `pixel_mean_random` |
 | `filtration` | Adjust selected tile colors to match source pixels |
 | `show` | Open a window with the finished mosaic |
 | `output_image_path` | Output file; leave empty to skip saving |
 
-Relative paths in the configuration are interpreted from the directory containing that configuration file. Run with the JSON path as an argument, or omit the argument to enter it interactively. If the requested `image_size` changes the source image's aspect ratio, the program asks whether to preserve it.
+Relative paths in the configuration are interpreted from the directory containing that configuration file. Run with the JSON path as an argument, or omit the argument to enter it interactively. The `interactive` aspect-ratio mode asks what to do when `image_size` changes the source proportions; the other modes never prompt.

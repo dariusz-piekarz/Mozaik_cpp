@@ -82,3 +82,19 @@ Po `cmake --preset local-manual-jsoncpp` wygenerowano bazę z 13 wpisami. Wpis `
 ## Dokumentowanie kolejnych projektów
 
 Utworzono `AGENTS.md` w tym repozytorium oraz globalny `C:\Users\DXD\.codex\AGENTS.md`. Reguła wymaga prowadzenia `manual.md` z poleceniami oraz `mods.md` z uzasadnieniami także w następnych projektach. Plik w repozytorium przenosi te oczekiwania wraz z kodem; plik globalny obejmuje również inne lokalne repozytoria. Zgodnie z dokumentacją Codex nowe sesje odczytują takie instrukcje przy starcie, dlatego samo utworzenie pliku w działającej sesji nie dowodzi jego automatycznego zastosowania już teraz. `manual.md` zawiera polecenia skopiowania reguły na inny komputer. Globalny plik jest poza Git tego projektu i należy go przenieść osobno.
+
+## Etap 9: automatyczna kompilacja i testy w CI
+
+Dodano `.github/workflows/ci.yml`, aby każda zmiana wysłana na GitHub oraz każdy pull request automatycznie przechodziły konfigurację CMake, kompilację i pełny CTest. Workflow można również uruchomić ręcznie. Ma tylko uprawnienie do odczytu zawartości repozytorium, limit 20 minut i anuluje starszy przebieg tej samej gałęzi, gdy pojawi się nowszy commit.
+
+CI używa `ubuntu-24.04`, Ninja i GCC oraz systemowych pakietów OpenCV, JsonCpp i spdlog. Nie używa windowsowego presetu ani manifestu vcpkg, ponieważ jego rolą jest dodatkowo wykrywanie zależności od Windows i sprawdzanie przenośności projektu. Kompromisem jest brak automatycznej weryfikacji dokładnego lokalnego zestawu LLVM-MinGW oraz tripletu `x64-mingw-static`; nadal weryfikują go polecenia opisane w `manual.md`. Osobny job Windows z cache vcpkg można dodać, jeśli zgodność binarna z tym toolchainem stanie się wymogiem projektu.
+
+Dodano też `to_d.md`, który przechowuje uporządkowaną listę dalszych pomysłów i oznacza CI jako wykonane. Lokalnie można sprawdzić te same fazy istniejącą konfiguracją Windows, ale samego środowiska GitHub Actions nie da się potwierdzić przed wysłaniem workflow do GitHub. W tej sesji `ctest --test-dir build/local --output-on-failure` zakończył się kodem 0 i wynikiem `9/9 Passed` w 12,02 s. Nie wykonywano ponownej kompilacji, ponieważ zmiana obejmuje tylko workflow i dokumentację; pierwszy rzeczywisty przebieg Ubuntu nastąpi po wysłaniu workflow do GitHub.
+
+## Etap 10: nieinteraktywny wybór proporcji
+
+Do konfiguracji dodano opcjonalne pole `aspect_ratio`. Przyjmuje `interactive`, `preserve_width`, `preserve_height` albo `stretch`; brak pola zachowuje wcześniejsze zachowanie `interactive`, więc dotychczasowe pliki JSON nadal działają. Nieznana wartość lub typ inny niż tekst są odrzucane podczas parsowania. Dołączony przykład wybiera `preserve_width` i nie czeka na standardowe wejście.
+
+`mainImageResize` przyjmuje tryb jako trzeci argument z domyślną wartością `interactive`. Tryby zachowania szerokości i wysokości używają tych samych sprawdzonych obliczeń proporcji co wcześniejsze odpowiedzi `Y/W` i `Y/H`, a `stretch` odpowiada odpowiedzi `N`. Jeżeli żądane proporcje już pasują do źródła, każdy tryb daje dokładne wymiary docelowe. Funkcja dodatkowo odrzuca nieznany tryb, aby bezpośrednie wywołania biblioteczne nie omijały walidacji parsera.
+
+Rozszerzono `aspect_ratio_test` o trzy ścieżki nieinteraktywne, brak komunikatów i błędny tryb. `validation_test` sprawdza poprawną wartość, błędną wartość, błędny typ oraz domyślne `interactive` po pominięciu pola. `cmake --build build/local --parallel 5` zakończyło się kodem 0, pełny CTest wynikiem `9/9 Passed` w 25,35 s, a uruchomienie programu z `examples/config.json` zakończyło się sukcesem bez pytania o proporcje.

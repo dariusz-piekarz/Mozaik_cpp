@@ -71,13 +71,22 @@ Get-Item .\examples\output.png
 
 Bez argumentu program zapyta o ścieżkę konfiguracji. Wpisanie jej jako całej linii pozwala używać nazw ze spacjami. Błędny JSON, nieczytelny obraz i błąd zapisu kończą program z komunikatem i kodem niezerowym. Publiczna funkcja biblioteczna `mozaik()` wybiera `./config.json` z bieżącego katalogu, a gdy go nie ma — `./examples/config.json`; polecenie CLI z argumentem korzysta bezpośrednio ze wskazanej ścieżki.
 
-Przykład ma siatkę `4 × 4` kafelków po `8 × 8` pikseli, więc wynik ma `32 × 32` piksele. `show` jest wyłączone; program nie otwiera okna podglądu.
+Przykład ma siatkę `4 × 4` kafelków po `8 × 8` pikseli, więc wynik ma `32 × 32` piksele. `show` jest wyłączone; program nie otwiera okna podglądu. Pole `aspect_ratio` steruje zmianą proporcji obrazu głównego:
+
+- `interactive` — przy niezgodnych proporcjach pyta w terminalu; jest to wartość domyślna, gdy pole pominięto,
+- `preserve_width` — zachowuje żądaną szerokość i oblicza wysokość,
+- `preserve_height` — zachowuje żądaną wysokość i oblicza szerokość,
+- `stretch` — wymusza dokładne `image_size`, nawet gdy zniekształci proporcje.
+
+Dołączony `examples/config.json` używa `preserve_width`, dlatego pełne uruchomienie przykładu nie wymaga wejścia z klawiatury.
 
 Pliki wejściowe są dołączone do repozytorium: `examples/input.png` oraz `examples/tiles/{blue,green,red,yellow}.png`. Uruchomienie przykładu nie pobiera obrazów z sieci. Pięć małych PNG wygenerowano podczas tej pracy w Pythonie 3.14.8 przy użyciu modułów standardowych `struct` i `zlib`; skrypt generatora nie jest częścią repozytorium. `examples/output.png` jest wynikiem programu i jest ignorowany przez Git.
 
 ## 4. Stan sprawdzony lokalnie
 
 W tej sesji polecenie `cmake --build build/local --target Mozaik image_paths_test` zakończyło się kodem 0, a `ctest --test-dir build/local -R ^image_paths_test$ --output-on-failure` pokazał `1/1 Passed`. Przykład uruchomiono z katalogu `examples` przez przekazanie ścieżki konfiguracji na standardowe wejście; program zgłosił `Program successfully run` i utworzył `examples/output.png`. Użyto istniejącej konfiguracji `build/local`, bez pobierania nowych zależności.
+
+Po dodaniu nieinteraktywnego `aspect_ratio` wykonano `cmake --build build/local --parallel 5`, `ctest --test-dir build/local --output-on-failure` oraz `.\build\local\Mozaik.exe .\examples\config.json`. Kompilacja i program zakończyły się kodem 0, a CTest pokazał `9/9 Passed` w 25,35 s. Pierwsza próba kompilacji w piaskownicy nie mogła uruchomić `clang-23` (`Permission denied`), dlatego tę samą komendę wykonano po zatwierdzeniu poza piaskownicą.
 
 W obecnym środowisku wykryto CMake 4.4.4, Ninja 1.13.2, Clang 23.1.1 z LLVM-MinGW 20260908 oraz vcpkg z katalogu `C:\Users\DXD\Tools\cpp\vcpkg` na commicie `9e593bb18ea69cc5095e012465dcd675a822ed0d`. Są to obserwacje, a nie dowód, że wykonano podane wyżej polecenia pobierania.
 
@@ -172,3 +181,15 @@ Get-Content -LiteralPath $globalRules -Encoding utf8
 ```
 
 W bieżącej sesji potwierdzono utworzenie i treść pliku globalnego oraz kopii w repozytorium. Nie uruchamiano osobnej nowej sesji Codex do sprawdzenia automatycznego odczytu reguły.
+
+## 7. Automatyczna kompilacja i testy w CI
+
+Workflow `.github/workflows/ci.yml` uruchamia się na GitHub Actions po każdym `push`, dla każdego `pull_request` oraz ręcznie przez **Actions → CI → Run workflow**. Używa obrazu `ubuntu-24.04`, instaluje CMake, Ninja, GCC, OpenCV, JsonCpp i spdlog z repozytoriów Ubuntu, a następnie wykonuje:
+
+```bash
+cmake -S . -B build/ci -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build/ci --parallel 2
+ctest --test-dir build/ci --output-on-failure
+```
+
+Te polecenia są instrukcją odtwarzającą pracę CI na systemie Ubuntu; w tej lokalnej sesji Windows nie wykonywano instalacji `apt` ani samego GitHub Actions. Workflow zacznie działać po wysłaniu pliku do repozytorium na GitHub. Celowo korzysta z pakietów systemowych zamiast manifestu vcpkg: sprawdza w ten sposób przenośność kodu i skraca wykonanie CI, natomiast lokalne budowanie Windows przez vcpkg pozostaje opisane w sekcjach 1–4.

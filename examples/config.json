@@ -3,6 +3,7 @@
   "filler_images_dir_path": "tiles",
   "image_size": [4, 4],
   "sub_images_size": [8, 8],
+  "aspect_ratio": "preserve_width",
   "strategy": "duplication",
   "filtration": false,
   "show": false,

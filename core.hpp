@@ -68,10 +68,12 @@ extern std::vector<cv::Mat> readImages(const std::vector<fs::path> &paths, const
  * 
  * @param image A cv::Mat - the main image as cv Matrix.
  * @param new_size A tuple of ints specifying the target size to which the image should be resized.
+ * @param aspect_ratio One of: interactive, preserve_width, preserve_height, stretch.
  *
  * @return A  cv::Mat object, each representing an image after resizing.
  */
-extern void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size);
+extern void mainImageResize(cv::Mat &image, const std::tuple<int, int> &new_size,
+                            std::string_view aspect_ratio = "interactive");
 
 
 /**
