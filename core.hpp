@@ -111,9 +111,16 @@ extern std::vector<std::vector<cv::Mat> > restructure(const std::vector<cv::Mat>
 extern std::vector<std::vector<cv::Mat> > project(const std::vector<std::vector<cv::Mat> > &decomposition,
                                                   const cv::Mat &image);
 
+/** Select whether mosaic rows are rendered on the calling thread or split across workers. */
+enum class RenderExecution {
+    sequential,
+    parallel
+};
+
 /** Build the mosaic directly in its output image, without retaining a grid of tiles. */
 cv::Mat renderMosaic(const std::vector<cv::Mat> &subimages, const cv::Mat &image,
-                     const std::string_view &strategy, bool filtration);
+                     const std::string_view &strategy, bool filtration,
+                     RenderExecution execution = RenderExecution::sequential);
 
 
 /**

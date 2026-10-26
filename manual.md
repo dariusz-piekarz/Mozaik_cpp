@@ -193,3 +193,27 @@ ctest --test-dir build/ci --output-on-failure
 ```
 
 Te polecenia są instrukcją odtwarzającą pracę CI na systemie Ubuntu; w tej lokalnej sesji Windows nie wykonywano instalacji `apt` ani samego GitHub Actions. Workflow zacznie działać po wysłaniu pliku do repozytorium na GitHub. Celowo korzysta z pakietów systemowych zamiast manifestu vcpkg: sprawdza w ten sposób przenośność kodu i skraca wykonanie CI, natomiast lokalne budowanie Windows przez vcpkg pozostaje opisane w sekcjach 1–4.
+
+## 8. Benchmark czasu i pamięci
+
+Cel `mozaik_benchmark` jest domyślnie włączony opcją CMake `MOZAIK_BUILD_BENCHMARKS`. Tworzy w katalogu tymczasowym 96 syntetycznych kafelków `16 × 16`, źródło `160 × 100` i wynik `2560 × 1600`. Osobno mierzy gorące wczytywanie kafelków, wyszukiwanie najbliższego koloru oraz renderowanie sekwencyjne i równoległe. Dwa warianty renderowania są wykonywane parami, a ich kolejność zmienia się w co drugiej iteracji. Raport zawiera minimum, medianę, p95 i przyrost resident set size; wartość przyrostu pamięci jest próbkowana co 1 ms i dla krótkich etapów ma charakter orientacyjny.
+
+Polecenia do samodzielnego powtórzenia w konfiguracji Release:
+
+```powershell
+cmake --build build/local --target mozaik_benchmark --parallel 5
+.\build\local\mozaik_benchmark.exe --iterations 20
+```
+
+W tej sesji wykonano oba polecenia. Pierwsza próba ponownej kompilacji została zablokowana przez piaskownicę przy uruchamianiu `clang-23` (`Permission denied`); identyczne polecenie wykonane po zatwierdzeniu poza piaskownicą zakończyło się kodem 0. Końcowy przebieg 20 sparowanych iteracji na maszynie zgłaszającej cztery wątki sprzętowe dał:
+
+| Etap | Mediana | p95 | Przyrost RSS |
+| --- | ---: | ---: | ---: |
+| `tile_loading` | 106,838 ms | 277,385 ms | 0,859 MiB |
+| `nearest_search` | 1108,742 ms | 1444,213 ms | 0,039 MiB |
+| `render_sequential` | 138,432 ms | 207,957 ms | 11,746 MiB |
+| `render_parallel` | 104,657 ms | 174,814 ms | 11,734 MiB |
+
+Mediana sparowanego ilorazu czasu sekwencyjnego do równoległego wyniosła `1,336×`. Wcześniejsze serie wykonywane blokami dawały sprzeczne wyniki zależne od kolejności, dlatego nie są podstawą decyzji. Pomiar uzasadnia użycie czterech wątków dla badanego renderowania `duplication` z filtracją, ale nie dowodzi przyspieszenia dla wszystkich strategii, rozmiarów ani innych komputerów. Najdroższym zmierzonym etapem pozostaje `nearest_search`; w tej zmianie nie optymalizowano jego algorytmu.
+
+Po zakończeniu zmian wykonano `cmake --build build/local --parallel 5` poza piaskownicą oraz `ctest --test-dir build/local --output-on-failure`. Kompilacja zakończyła się kodem 0, a końcowy CTest wynikiem `9/9 Passed` w 5,98 s. Diagnostyka edytora nie zgłosiła błędów w `core.cpp`, `core.hpp` ani `benchmarks/mozaik_benchmark.cpp`.

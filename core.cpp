@@ -233,7 +233,8 @@ std::vector<std::vector<cv::Mat> > project(const std::vector<std::vector<cv::Mat
 
 
 cv::Mat renderMosaic(const std::vector<cv::Mat> &subimages, const cv::Mat &image,
-                     const std::string_view &strategy, bool filtration) {
+                     const std::string_view &strategy, bool filtration,
+                     RenderExecution execution) {
     if (image.empty() || image.type() != CV_8UC3 || subimages.empty()) {
         throw std::invalid_argument("A color source image and at least one tile are required.");
     }
@@ -260,37 +261,71 @@ cv::Mat renderMosaic(const std::vector<cv::Mat> &subimages, const cv::Mat &image
 
     const auto means = strategy == "duplication" ? std::vector<cv::Vec3b>{} : calculateMeans(subimages);
     const auto rank = static_cast<int>(std::ceil(24. / 1117. * static_cast<double>(subimages.size()) + 2.));
-    for (int row = 0; row < image.rows; ++row) {
-        for (int col = 0; col < image.cols; ++col) {
-            const auto color = image.at<cv::Vec3b>(row, col);
-            std::size_t index;
-            if (strategy == "duplication") {
-                index = (static_cast<std::size_t>(row) * image.cols + col) % subimages.size();
-            } else if (strategy == "pixel_mean") {
-                index = static_cast<std::size_t>(closestImage(means, color));
-            } else {
-                index = static_cast<std::size_t>(selectClosestPictRandom(means, color, rank));
-            }
+    const auto render_rows = [&](int first_row, int last_row) {
+        for (int row = first_row; row < last_row; ++row) {
+            for (int col = 0; col < image.cols; ++col) {
+                const auto color = image.at<cv::Vec3b>(row, col);
+                std::size_t index;
+                if (strategy == "duplication") {
+                    index = (static_cast<std::size_t>(row) * image.cols + col) % subimages.size();
+                } else if (strategy == "pixel_mean") {
+                    index = static_cast<std::size_t>(closestImage(means, color));
+                } else {
+                    index = static_cast<std::size_t>(selectClosestPictRandom(means, color, rank));
+                }
 
-            const cv::Rect target(col * tile_size.width, row * tile_size.height,
-                                  tile_size.width, tile_size.height);
-            cv::Mat destination = output(target);
-            if (filtration) {
-                const double scale[] = {
-                    color[0] / 255.0, color[1] / 255.0, color[2] / 255.0
-                };
-                for (int tile_row = 0; tile_row < tile_size.height; ++tile_row) {
-                    const auto *source_pixels = subimages[index].ptr<cv::Vec3b>(tile_row);
-                    auto *destination_pixels = destination.ptr<cv::Vec3b>(tile_row);
-                    for (int tile_col = 0; tile_col < tile_size.width; ++tile_col) {
-                        for (int channel = 0; channel < 3; ++channel) {
-                            destination_pixels[tile_col][channel] = cv::saturate_cast<uchar>(
-                                source_pixels[tile_col][channel] * scale[channel]);
+                if (filtration) {
+                    const double scale[] = {
+                        color[0] / 255.0, color[1] / 255.0, color[2] / 255.0
+                    };
+                    for (int tile_row = 0; tile_row < tile_size.height; ++tile_row) {
+                        const auto *source_pixels = subimages[index].ptr<cv::Vec3b>(tile_row);
+                        auto *destination_pixels = output.ptr<cv::Vec3b>(
+                            row * tile_size.height + tile_row) + col * tile_size.width;
+                        for (int tile_col = 0; tile_col < tile_size.width; ++tile_col) {
+                            for (int channel = 0; channel < 3; ++channel) {
+                                destination_pixels[tile_col][channel] = cv::saturate_cast<uchar>(
+                                    source_pixels[tile_col][channel] * scale[channel]);
+                            }
                         }
                     }
+                } else {
+                    for (int tile_row = 0; tile_row < tile_size.height; ++tile_row) {
+                        const auto *source_pixels = subimages[index].ptr<cv::Vec3b>(tile_row);
+                        auto *destination_pixels = output.ptr<cv::Vec3b>(
+                            row * tile_size.height + tile_row) + col * tile_size.width;
+                        std::copy_n(source_pixels, tile_size.width, destination_pixels);
+                    }
                 }
-            } else {
-                subimages[index].copyTo(destination);
+            }
+        }
+    };
+
+    if (execution == RenderExecution::sequential || image.rows == 1) {
+        render_rows(0, image.rows);
+    } else {
+        const unsigned hardware_threads = std::max(1U, std::thread::hardware_concurrency());
+        const std::size_t thread_count = std::min<std::size_t>(hardware_threads, image.rows);
+        std::vector<std::jthread> threads;
+        std::vector<std::exception_ptr> failures(thread_count);
+        threads.reserve(thread_count);
+        for (std::size_t index = 0; index < thread_count; ++index) {
+            const int first_row = static_cast<int>(image.rows * index / thread_count);
+            const int last_row = static_cast<int>(image.rows * (index + 1) / thread_count);
+            threads.emplace_back([&, index, first_row, last_row] {
+                try {
+                    render_rows(first_row, last_row);
+                } catch (...) {
+                    failures[index] = std::current_exception();
+                }
+            });
+        }
+        for (auto &thread : threads) {
+            thread.join();
+        }
+        for (const auto &failure : failures) {
+            if (failure) {
+                std::rethrow_exception(failure);
             }
         }
     }
@@ -384,7 +419,8 @@ void mozaikCoreApp(const fs::path &config_path) {
     spdlog::info("Rendering mosaic started.");
     clock_t start2 = std::clock();
 
-    const cv::Mat result = renderMosaic(images, image, config.strategy, config.filtration);
+    const cv::Mat result = renderMosaic(images, image, config.strategy, config.filtration,
+                                        RenderExecution::parallel);
     clock_t end2 = std::clock();
 
     spdlog::info("Rendering mosaic completed in time: " + elapseTime(start2, end2));

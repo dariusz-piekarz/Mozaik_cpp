@@ -154,6 +154,40 @@ void testRandomStrategyWithOneTile() {
     }
 }
 
+void testParallelMatchesSequential() {
+    std::vector<cv::Mat> tiles;
+    for (int index = 0; index < 7; ++index) {
+        cv::Mat tile(5, 3, CV_8UC3);
+        for (int row = 0; row < tile.rows; ++row) {
+            for (int col = 0; col < tile.cols; ++col) {
+                tile.at<cv::Vec3b>(row, col) = cv::Vec3b(
+                    (index * 31 + row * 7 + col) % 256,
+                    (index * 17 + row + col * 11) % 256,
+                    (index * 13 + row * 19 + col * 3) % 256);
+            }
+        }
+        tiles.push_back(std::move(tile));
+    }
+    cv::Mat source(9, 11, CV_8UC3);
+    for (int row = 0; row < source.rows; ++row) {
+        for (int col = 0; col < source.cols; ++col) {
+            source.at<cv::Vec3b>(row, col) = cv::Vec3b(
+                (row * 29 + col * 5) % 256,
+                (row * 3 + col * 23) % 256,
+                (row * 17 + col * 7) % 256);
+        }
+    }
+
+    for (const bool filtration : {false, true}) {
+        const cv::Mat sequential = renderMosaic(
+            tiles, source, "pixel_mean", filtration, RenderExecution::sequential);
+        const cv::Mat parallel = renderMosaic(
+            tiles, source, "pixel_mean", filtration, RenderExecution::parallel);
+        require(cv::countNonZero(sequential.reshape(1) != parallel.reshape(1)) == 0,
+                "Parallel rendering differs from sequential rendering");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -164,6 +198,7 @@ int main() {
         testFilteredPatternMatchesPreviousColorRule();
         testUnfilteredPatternPreserved();
         testRandomStrategyWithOneTile();
+        testParallelMatchesSequential();
         std::cout << "PASS mosaic rendering\n";
         return 0;
     } catch (const std::exception &error) {
